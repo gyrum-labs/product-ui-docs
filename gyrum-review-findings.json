@@ -1,49 +1,34 @@
 {
   "schema_version": "1",
-  "review_run_id": "eb4368e7-a296-4480-a110-a6394c190389",
-  "ts": "2026-08-22T17:22:06Z",
+  "review_run_id": "e33da7c8-9ba2-44c7-8526-4c34fc1190c1",
+  "ts": "2026-08-22T18:54:09Z",
   "ticket": "warp#14690",
   "agent_label": "unknown",
-  "review_pr_version": "v29.5.1",
-  "exit_code": 5,
+  "review_pr_version": "v29.5.2-3-g76d1631b",
+  "exit_code": 2,
   "findings": [
     {
-      "gate": "doc-truth (warp#709)",
-      "rule_ref": "gates/doc-truth@v1",
+      "gate": "no conflict markers/ws",
+      "rule_ref": "gates/no-conflict-markers-ws@v1",
       "severity": "error",
-      "evidence": "docs/method.md:16:1: error:file: journeys-reachability.test.ts — backticked path does not resolve: `journeys-reachability.test.ts` (searched by filename under /tmp/gyrum-work/product-ui-docs-seed-ledger)\ndocs/products/ops.gyrum.ai/clauses.md:26:1: error:file: tests/e2e/nav-reduction.spec.ts — backticked path does not resolve: `tests/e2e/nav-reduction.spec.ts` (tried /tmp/gyrum-work/product-ui-docs-seed-ledger, docs/products/ops.gyrum.ai)\ndocs/products/ops.gyrum.ai/clauses.md:47:1: error:file: journeys-reachability.test.ts — backticked path does not resolve: `journeys-reachability.test.ts` (searched by filename under /tmp/gyrum-work/product-ui-docs-seed-ledger)\ndocs/products/ops.gyrum.ai/clauses.md:92:1: error:file: ai-frontend/docs/journeys/ia-proposal.md — backticked path does not resolve: `ai-frontend/docs/journeys/ia-proposal.md` (tried /tmp/gyrum-work/product-ui-docs-seed-ledger, docs/products/ops.gyrum.ai)\ndocs/products/ops.gyrum.ai/journeys.md:5:1: error:file: ai-frontend/docs/journeys/ia-proposal.md — backticked path does not resolve: `ai-frontend/docs/journeys/ia-proposal.md` (tried /tmp/gyrum-work/product-ui-docs-seed-ledger, docs/products/ops.gyrum.ai)"
+      "": ""
     },
     {
       "gate": "doc-pair",
       "rule_ref": "gates/doc-pair@v1",
-      "severity": "error"
-    },
-    {
-      "gate": "deploy-readiness",
-      "rule_ref": "gates/deploy-readiness@v1",
-      "severity": "error"
-    },
-    {
-      "gate": "repo-compliance",
-      "rule_ref": "gates/repo-compliance@v1",
-      "severity": "error"
-    },
-    {
-      "gate": "docs-guide",
-      "rule_ref": "gates/docs-guide@v1",
       "severity": "error"
     }
   ],
   "gate_timings": [
     {
       "gate": "no conflict markers/ws",
-      "status": "pass",
-      "duration_ms": 14
+      "status": "fail",
+      "duration_ms": 77
     },
     {
       "gate": "first-use smoke",
       "status": "pass",
-      "duration_ms": 162
+      "duration_ms": 212
     }
   ]
 }
