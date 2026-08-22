@@ -1,2 +1,6 @@
 version: 1
 type: docs
+gates:
+  profile: standard
+  require:
+    - orientation-drift

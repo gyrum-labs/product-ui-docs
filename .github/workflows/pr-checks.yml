@@ -1,0 +1,371 @@
+# pr-checks.yml — PR gate for ai-frontend (warp#1067, sharded warp#7343).
+#
+# Runs the structural-checks bundle on every pull_request against main, so
+# branch protection has something concrete to require. Without this workflow,
+# main's branch protection enforced "2 reviewer approvals" but had ZERO
+# required status checks (no PR-triggered workflow existed at all). All
+# build/test/lint enforcement was client-side via gyrum-* pre-push hooks +
+# gyrum-review-pr — mechanically bypassable by `git push --no-verify` +
+# `gh pr merge`.
+#
+# Companion to release.yml (post-merge image build). release.yml's intro
+# refers to "pr-review.yml" as the PR merge gate; that file was planned
+# but never landed. This is its replacement under the more accurate
+# pr-checks.yml name (we're not running persona-review here — that's a
+# client-side concern via gyrum-review-pr — we're running the structural
+# gates that branch protection should require).
+#
+# All jobs run on the self-hosted ARM64 pool (Hetzner CAX*). The
+# rollup-native lock mismatch (npm/cli#4828) was fixed in commit 33bea5b
+# which added both @rollup/rollup-linux-x64-gnu AND
+# @rollup/rollup-linux-arm64-gnu to optionalDependencies. The runner-side
+# cargo-cult `x64` label cleanup is tracked separately as Phase 2 of
+# warp#1176; the honest read-only label `ARM64` (case-insensitive `arm64`)
+# is what these selectors match against.
+#
+# INSTALL ONCE + SHARD VITEST 4-WAY (warp#7343)
+# ---------------------------------------------
+# Previously the four jobs (build/test/lint/check) each ran their OWN
+# clean install (4× the same install per run, against GitHub Packages with
+# the GHCR_NPM_READ PAT), and the `test` job ran the whole vitest suite serially
+# (`npm test`, p50 14m21 on the slow-class burn board, ×10/day on the shared
+# 9-agent self-hosted pool).
+#
+# Now:
+#   * ONE `setup` job runs the clean install exactly ONCE and publishes
+#     node_modules.
+#   * `test` becomes a 4-way `matrix.shard` job running
+#     `vitest run --shard=N/4` with `fail-fast: false`; each shard writes
+#     PASS/FAIL/SKIP stats and ALWAYS exits 0, so one shard's failure never
+#     fail-fast-cancels its siblings.
+#   * `structural-checks` (the SINGLE required check — name UNCHANGED, so
+#     branch protection needs zero edits) aggregates the per-shard stats via
+#     scripts/ci-aggregate-shards.sh (warp#5705 / warp#6376 verdict contract:
+#     exit 1 on FAIL>0, exit 75 EX_TEMPFAIL on a missing stats file) AND
+#     mirrors the build/lint/check results.
+#
+# SHARD COUNT = 4 (measured, not guessed): a local `vitest run` of the full
+# suite is 379 test files / 4740 tests; `vitest run --shard=1/4` is 95 files
+# in ~1/4 the test-execution time, a clean native file-level partition. The
+# slow ARM64 class runs the serial suite at p50 14m21; four file-quartiles in
+# parallel land each shard well under the ~8m target (2 shards would only
+# halve to ~7-8m and leave no headroom under the ticket's <~8m acceptance).
+#
+# SHARED node_modules MECHANISM = actions/cache keyed on package-lock.json
+# (NOT the upload/download-artifact form). Tradeoff (Decision pin):
+#   * cache: warm-restore is far faster than streaming a ~hundreds-of-MB
+#     node_modules artifact, AND GitHub's cache service is shared ACROSS the
+#     3-host self-hosted pool (so a consumer that lands on a different host
+#     than `setup` still restores), AND it survives across runs (a no-lock-
+#     change PR restores instantly). Cold-miss cost is bounded: `setup`
+#     itself pays it once via the clean install; consumers fail loudly (the guard)
+#     if the restore misses, which never happens after `setup` populates the
+#     key under the same lockfile hash within the same run.
+#   * artifact would copy EXACT bytes but re-uploads every run (no cross-run
+#     reuse) and streams hundreds of MB per consumer — slower on this pool.
+# The grep-able invariant from the ticket holds: the install command appears
+# exactly ONCE in this file (in `setup`); no consumer ever re-installs.
+# (warp#7343 acceptance: `grep -c` of the install command returns 1.)
+
+name: pr-checks
+
+'on':
+  pull_request:
+    branches: [main]
+
+# Cancel earlier in-flight runs on the same PR when a new commit is pushed.
+# Saves CI minutes on rebase-heavy iteration; the latest commit is the only
+# one that needs to gate the merge.
+concurrency:
+  group: pr-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+# Workflow-level env: NODE_AUTH_TOKEN (warp#1858 — Phase 3 bootstrap of
+# canon-extraction). Required for the clean install to pull @gyrum-labs/*
+# from GitHub Packages per the .npmrc scope-registry config.
+#
+# Uses `GHCR_NPM_READ` — a classic PAT minted with `read:packages`
+# scope, SSO-authorized for `gyrum-labs`, added as a repo secret on
+# 2026-05-07. Tried two narrower-scope alternatives first; both 403'd:
+#   - secrets.GITHUB_TOKEN → repo-scoped, can't cross to gyrum-ui's packages.
+#   - secrets.GH_FLEET_TOKEN → org-secret but lacks read:packages scope.
+# GHCR_NPM_READ is the minimum-scope token that works for cross-repo
+# npm install from GitHub Packages.
+#
+# Inherited by every job; the `setup` job's setup-node also configures
+# `registry-url` + `scope: '@gyrum-labs'` so npm wires the auth header
+# to the right host. (Consumer jobs no longer install, so they don't need
+# the registry config — they restore the populated node_modules.)
+env:
+  NODE_AUTH_TOKEN: ${{ secrets.GHCR_NPM_READ }}
+  # Single source of truth for the node_modules cache key across all jobs:
+  # a stable prefix + the lockfile hash. Bump NM_CACHE_PREFIX (not the
+  # whole key) to force a fleet-wide cold reinstall if a cache ever rots.
+  NM_CACHE_PREFIX: pr-checks-node-modules-v1
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  # Quota-aware overflow router (warp#8572 / warp#9153). GATED OFF by default
+  # (vars.CI_OVERFLOW_ENABLED != 'true' => self-hosted), so this is a no-op
+  # until enabled; when enabled it spills to Ubicloud arm64 ONLY when the
+  # self-hosted pool is saturated AND Ubicloud has vCPU headroom — fail-safe to
+  # self-hosted otherwise. Identical wiring to e2e-green-subset.yml. The router's
+  # defaults are arm64-correct (self_hosted ["self-hosted","linux","arm64"],
+  # ubicloud_label ubicloud-standard-4-arm), so pr-checks stays arm64 either way
+  # (no arch mix — warp#1176 / arm64-release constraint preserved).
+  #
+  # TWO ROUTES (warp#8516 slow-lane): lightweight jobs (setup, lint, check,
+  # structural-checks aggregator) use `route` (generic pool); heavy jobs
+  # (test shards, build) use `route-slow` which adds the `slow` label so
+  # they land only on the K=floor(vCPU/4) slow-lane agents registered by
+  # dark-factory#1777 — preventing 4 heavy jobs from thrashing the same
+  # host. The node_modules cache is shared remotely and arch-identical, so
+  # the setup→shard cache contract holds across both targets.
+  route:
+    uses: ./.github/workflows/ci-overflow-route.yml
+
+  # Slow-lane route for heavy jobs (warp#8516). Same overflow logic as
+  # `route` but the self-hosted label includes `slow`, so heavy jobs
+  # (test shards, build) only land on the slow-lane agents. When the
+  # overflow router spills to Ubicloud, the `slow` label is irrelevant
+  # (managed runners don't carry it) — the spill path is unchanged.
+  route-slow:
+    uses: ./.github/workflows/ci-overflow-route.yml
+    with:
+      self_hosted_label: '["self-hosted", "linux", "arm64", "slow"]'
+
+  # ───────────────────────────────────────────────────────────────────
+  # setup — the ONLY job that runs the clean install. Populates the
+  # node_modules cache (keyed on package-lock.json) every consumer restores.
+  # ───────────────────────────────────────────────────────────────────
+  setup:
+    name: setup
+    needs: route
+    runs-on: ${{ fromJSON(needs.route.outputs.runner) }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@gyrum-labs'
+      # Restore-or-populate node_modules. On a warm hit (same lockfile hash
+      # already cached) the install step below is skipped entirely — the
+      # install-once becomes install-ZERO across the run AND across
+      # no-lock-change PRs.
+      - id: nm-cache
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ env.NM_CACHE_PREFIX }}-${{ hashFiles('package-lock.json') }}
+      - name: Install dependencies (only on cache miss)
+        if: steps.nm-cache.outputs.cache-hit != 'true'
+        # The repo's single clean install (warp#7343 invariant: exactly one
+        # in this file). svelte-kit sync runs via the `prepare` lifecycle hook.
+        run: npm ci
+
+  # ───────────────────────────────────────────────────────────────────
+  # test — 4-way native vitest shard. fail-fast:false so one shard's
+  # failure never cancels its siblings; each shard ALWAYS exits 0 and
+  # uploads its PASS/FAIL/SKIP stats (verdict is decided by the
+  # aggregator in structural-checks).
+  #
+  # SLOW LANE (warp#8516): uses route-slow so shards land on the
+  # slow-lane agents (dark-factory#1777), not the generic pool.
+  # ───────────────────────────────────────────────────────────────────
+  test:
+    name: pr-checks (shard ${{ matrix.shard }} of 4)
+    needs: [route-slow, setup]
+    runs-on: ${{ fromJSON(needs.route-slow.outputs.runner) }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # Restore the node_modules `setup` populated. fail-on-cache-miss so a
+      # consumer NEVER silently falls back to a second install (the ticket's
+      # exactly-one-install invariant) — a miss here means `setup`'s key
+      # didn't land and the run should fail loudly, not double-install.
+      - uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: ${{ env.NM_CACHE_PREFIX }}-${{ hashFiles('package-lock.json') }}
+          fail-on-cache-miss: true
+      - name: Run vitest shard ${{ matrix.shard }}/4 + write stats (always exit 0)
+        run: |
+          set -uo pipefail
+          mkdir -p shard-stats
+          # vitest's JSON reporter gives machine-readable per-run totals.
+          # We capture it to a file, derive PASS/FAIL/SKIP, and ALWAYS
+          # exit 0 — the verdict is the aggregator's job. A shard that ran
+          # its tests always reaches the always-upload step below, so a
+          # MISSING stats file downstream unambiguously means the runner
+          # was cancelled pre-write (→ exit 75 rerun-eligible), never a 0.
+          set +e
+          npx vitest run \
+            --shard=${{ matrix.shard }}/4 \
+            --reporter=json --outputFile=vitest-shard.json \
+            --reporter=default
+          set -e
+          node scripts/ci-vitest-shard-stats.mjs \
+            vitest-shard.json \
+            > "shard-stats/shard-${{ matrix.shard }}.txt"
+          echo "shard ${{ matrix.shard }}/4 stats: $(cat shard-stats/shard-${{ matrix.shard }}.txt)"
+          # Always succeed: the aggregator decides the verdict from stats.
+          exit 0
+      - name: Upload shard ${{ matrix.shard }} stats
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shard-stats-${{ matrix.shard }}
+          path: shard-stats/shard-${{ matrix.shard }}.txt
+          if-no-files-found: warn
+
+  lint:
+    name: lint
+    needs: [route, setup]
+    runs-on: ${{ fromJSON(needs.route.outputs.runner) }}
+    # fetch-depth: 0 — the lint-changed step `git diff`s vs the PR's
+    # base ref. The default shallow clone (depth=1) doesn't carry the
+    # base ref's history. warp#1725.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: ${{ env.NM_CACHE_PREFIX }}-${{ hashFiles('package-lock.json') }}
+          fail-on-cache-miss: true
+      - run: npm run lint
+      # Diff-only gate (warp#1725): promotes
+      # gyrum-wire/apifetch-requires-normalize to `error` for files
+      # the PR's diff actually touched. Stale-but-approved PRs that
+      # rebase cleanly stay green even as new offenders accumulate
+      # on main.  Kept as a separate step (not folded into npm run
+      # lint) so a failure here is named lint-changed in CI rather
+      # than buried in the npm run lint chain — and so the
+      # package.json + lockfile-consistency gate isn't tripped by
+      # a script-only edit (gyrum-review-pr review-pr.sh:947).
+      - name: lint-changed (diff-only)
+        run: bash scripts/lint-changed.sh
+        env:
+          LINT_BASE_REF: origin/${{ github.event.pull_request.base.ref }}
+
+  check:
+    name: check
+    needs: [route, setup]
+    runs-on: ${{ fromJSON(needs.route.outputs.runner) }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: ${{ env.NM_CACHE_PREFIX }}-${{ hashFiles('package-lock.json') }}
+          fail-on-cache-miss: true
+      # Canon-coverage enforce gate (warp#2424 — drops the warp#2395
+      # Phase 4a `||` neuter now that warp#2384 / devtools PR-453 flipped
+      # the CLI default from advisory → enforce). The CLI exits non-zero
+      # on canon violations; we surface that exit directly so the step
+      # fails the job. The rollover escape hatch is the env var
+      # `GYRUM_CANON_COVERAGE_GATE=advisory` (NOT a CLI flag) — set it
+      # on a specific run if a hex-no-drift false-positive blocks a
+      # genuinely-OK merge. The `command -v` guard remains: the devtools
+      # rollout across the self-hosted ARM64 pool is still propagating,
+      # so a runner without the CLI still no-ops cleanly with a warning.
+      - name: Canon coverage (enforce)
+        run: |
+          if command -v gyrum-canon-coverage >/dev/null; then
+            gyrum-canon-coverage
+          else
+            echo "::warning::gyrum-canon-coverage not on runner PATH — enforce check skipped"
+          fi
+      - run: npm run check
+
+  # SLOW LANE (warp#8516): build is a heavy job (>2 min) — route to
+  # the slow-lane agents so it doesn't compete with lightweight jobs.
+  build:
+    name: build
+    needs: [route-slow, setup]
+    runs-on: ${{ fromJSON(needs.route-slow.outputs.runner) }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/cache/restore@v4
+        with:
+          path: node_modules
+          key: ${{ env.NM_CACHE_PREFIX }}-${{ hashFiles('package-lock.json') }}
+          fail-on-cache-miss: true
+      - run: npm run build
+
+  # Aggregator job — exists solely so branch protection has a single
+  # `structural-checks` context to require (warp#1985, warp#1998). NAME
+  # UNCHANGED across the warp#7343 reshape: the fleet-wide sweep
+  # (warp#1942) pinned every repo's required-status-checks to
+  # ["structural-checks"], and that context is verified still-required
+  # (and nothing else) before merge — so this restructure needs ZERO
+  # branch-protection edit.
+  #
+  # Two responsibilities (warp#7343):
+  #   1. Aggregate the 4 vitest shards' PASS/FAIL/SKIP stats via
+  #      scripts/ci-aggregate-shards.sh (warp#5705/warp#6376 verdict
+  #      contract): exit 1 on any FAIL>0 (real regression, no auto-rerun),
+  #      exit 75 EX_TEMPFAIL on a missing stats file (runner cancelled
+  #      pre-write → INFRA-INCOMPLETE-RERUN-ELIGIBLE sentinel, picked up by
+  #      ci-rerun-infra.yml), else 0.
+  #   2. Mirror the build/lint/check results so a single one failing fails
+  #      this required job too.
+  #
+  # `if: always()` lets us inspect results even when a need failed — a
+  # SKIPPED required check looks identical to a passing one to branch
+  # protection (the warp#5705 always() lesson), so we must run + decide.
+  structural-checks:
+    name: structural-checks
+    needs: [route, setup, test, lint, check, build]
+    if: always()
+    runs-on: ${{ fromJSON(needs.route.outputs.runner) }}
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download per-shard stats
+        uses: actions/download-artifact@v4
+        with:
+          path: shard-stats
+          pattern: shard-stats-*
+          merge-multiple: true
+      - name: Aggregate shard verdict (exit 1 FAIL / exit 75 missing / 0 green)
+        run: bash scripts/ci-aggregate-shards.sh shard-stats 4
+      - name: Mirror non-test gate results
+        run: |
+          set -uo pipefail
+          echo "setup:  ${{ needs.setup.result }}"
+          echo "lint:   ${{ needs.lint.result }}"
+          echo "check:  ${{ needs.check.result }}"
+          echo "build:  ${{ needs.build.result }}"
+          if [[ "${{ needs.setup.result }}" != "success" \
+             || "${{ needs.lint.result }}" != "success" \
+             || "${{ needs.check.result }}" != "success" \
+             || "${{ needs.build.result }}" != "success" ]]; then
+            echo "::error::one or more structural gates (setup/lint/check/build) failed"
+            exit 1
+          fi
