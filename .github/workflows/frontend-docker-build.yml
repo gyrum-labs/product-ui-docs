@@ -1,0 +1,84 @@
+# MANAGED BY gyrum-labs/devtools (warp#2770, warp#3890, warp#12956) — DO NOT EDIT BY HAND.
+#
+# The historical context name remains `frontend-docker-build` because fleet
+# branch protection requires it. The implementation now verifies every image
+# in `.gyrum/deployment-contract.json`; the name changes only in a coordinated
+# branch-protection migration.
+
+name: frontend-docker-build
+
+'on':
+  pull_request:
+    branches: [main]
+    # No paths filter: the protected context must resolve on every PR.
+  workflow_dispatch: {}
+
+concurrency:
+  group: frontend-docker-build-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  frontend-docker-build:
+    name: frontend-docker-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch git-lfs objects when declared
+        # warp#11915 class: a repo tracking media in git-lfs must fetch the
+        # objects before Docker builds, or the image ships ~130-byte pointer
+        # files that render fine and serve broken media with nothing red.
+        # Guarded on the repo's own attributes so runners without git-lfs
+        # installed only need it for repos that actually track LFS objects.
+        shell: bash
+        run: |
+          if [ -n "$(git ls-files ':(attr:filter=lfs)')" ]; then
+            git lfs pull
+          else
+            echo "no LFS-tracked files; skipping"
+          fi
+      - name: Classify deployment declaration
+        id: contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          mode="$(bash .gyrum/bin/release-artifact-build.sh classify .)"
+          printf 'mode=%s\n' "$mode" >> "$GITHUB_OUTPUT"
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Compute build timestamp
+        if: steps.contract.outputs.mode == 'declared'
+        id: build_time
+        run: echo "value=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+      - name: Build every declared artifact (no push)
+        if: steps.contract.outputs.mode == 'declared'
+        shell: bash
+        env:
+          COMMIT: ${{ github.sha }}
+          BRANCH: ${{ github.base_ref }}
+          BUILD_TIME: ${{ steps.build_time.outputs.value }}
+          VERSION_TAG: pr-${{ github.event.pull_request.number }}
+          GIT_SHA: ${{ github.sha }}
+          GIT_SHA_FULL: ${{ github.sha }}
+          GIT_BRANCH: ${{ github.base_ref }}
+          # PR code controls the contract, Dockerfiles, and build contexts.
+          # Keep every supported BuildKit channel available for parity, but
+          # alias it to this job's short-lived, current-repository read token.
+          # Long-lived fleet/package/devtools credentials belong only in the
+          # trusted tag-release lane (warp#14607).
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_FLEET_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GYRUM_DEVTOOLS_READ_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bash .gyrum/bin/release-artifact-build.sh build-pr .
+      - name: Build legacy artifact (no push)
+        if: steps.contract.outputs.mode == 'legacy'
+        run: bash .gyrum/bin/release-artifact-build.sh build-legacy-artifact .

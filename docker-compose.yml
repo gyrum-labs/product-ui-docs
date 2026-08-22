@@ -1,0 +1,52 @@
+# product-ui-docs — docker-compose stack (ADR-092 shape).
+# Services: postgres (profile-gated local-db), product-ui-docs (backend),
+# product-ui-docs-ui (nginx-alpine frontend). All images pulled from GHCR.
+# No host ports — host's Caddy reverse-proxies via the external gyrum_edge
+# docker network. Per ADR-092 rule 2: compose MUST NOT bundle TLS termination.
+# Bring-up: docker compose --profile local-db up -d  (omit profile for external DB).
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    profiles: ["local-db"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-product-ui-docs}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-product-ui-docs}
+    volumes:
+      - product-ui-docs_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-product-ui-docs} -d ${POSTGRES_DB:-product-ui-docs}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  product-ui-docs:
+    image: ghcr.io/gyrum-labs/product-ui-docs:${product-ui-docs_TAG:-latest}
+    container_name: product-ui-docs
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://${POSTGRES_USER:-product-ui-docs}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-product-ui-docs}?sslmode=disable}
+      PORT: "8080"
+    healthcheck:
+      disable: true
+
+  product-ui-docs-ui:
+    image: ghcr.io/gyrum-labs/product-ui-docs-ui:${product-ui-docs_UI_TAG:-latest}
+    container_name: product-ui-docs-ui
+    restart: unless-stopped
+    depends_on:
+      - product-ui-docs
+    healthcheck:
+      disable: true
+
+volumes:
+  product-ui-docs_pgdata:
+    name: product-ui-docs_pgdata
+
+# Host-managed gyrum_edge network — created by dark-factory's `host` role.
+networks:
+  default:
+    name: gyrum_edge
+    external: true

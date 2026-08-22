@@ -1,0 +1,318 @@
+# release.yml — publish every artifact declared by the deployment contract.
+# Build geometry is never restated here: the checked-in declaration is
+# validated and normalized before the matrix is created. warp#14673: the
+# prepare job plans BUILD-vs-REUSE per component from exact input
+# fingerprints; only BUILD rows fan out, and a finalise job aggregates the
+# complete deployment-set artifact candidate.
+
+name: release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+  workflow_dispatch: {}
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prepare-artifacts:
+    name: validate declared release artifacts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      COMMIT: ${{ github.sha }}
+      BRANCH: ${{ github.ref_name }}
+      GIT_SHA: ${{ github.sha }}
+      GIT_SHA_FULL: ${{ github.sha }}
+      GIT_BRANCH: ${{ github.ref_name }}
+      VERSION_TAG: ${{ github.ref_name }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_FLEET_TOKEN: ${{ secrets.GH_FLEET_TOKEN }}
+      NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN || secrets.GITHUB_TOKEN }}
+      GYRUM_DEVTOOLS_READ_TOKEN: ${{ secrets.GYRUM_DEVTOOLS_READ_TOKEN }}
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Compute preflight timestamp
+        id: build_time
+        run: echo "value=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+      - name: Resolve verified predecessor set (authority seam)
+        id: predecessor
+        shell: bash
+        env:
+          PREDECESSOR_SET_URL: ${{ vars.GYRUM_PREDECESSOR_SET_URL }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          # A predecessor set is reuse AUTHORITY. A file committed in this
+          # repository could forge "inputs unchanged" evidence for itself,
+          # so the only sanctioned source here is an owner-controlled
+          # Actions variable (vars.* cannot be written by a PR). Until the
+          # catalog/lineage children (warp#14674 / warp#14676) provide it
+          # authoritatively, leaving the variable unset plans every
+          # component as BUILD — honest over-invalidation, never unsafe reuse.
+          if [ -z "$PREDECESSOR_SET_URL" ]; then
+            echo "no predecessor authority configured; planning all components BUILD"
+            echo "path=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          curl -fsSL --retry 3 -H "Authorization: Bearer $GH_TOKEN" \
+            "$PREDECESSOR_SET_URL" -o /tmp/predecessor-set.json
+          jq -e '.schema == "verified-deployment-set/v1"' /tmp/predecessor-set.json > /dev/null \
+            || { echo "::error::predecessor at GYRUM_PREDECESSOR_SET_URL is not verified-deployment-set/v1"; exit 1; }
+          echo "path=/tmp/predecessor-set.json" >> "$GITHUB_OUTPUT"
+      - name: Validate and plan artifacts
+        id: plan
+        shell: bash
+        env:
+          BUILD_TIME: ${{ steps.build_time.outputs.value }}
+          PREDECESSOR_PATH: ${{ steps.predecessor.outputs.path }}
+        run: |
+          set -euo pipefail
+          plan_path="$RUNNER_TEMP/deployment-set-build-plan.json"
+          bash .gyrum/bin/release-artifact-build.sh check-env .
+          bash .gyrum/bin/release-artifact-build.sh plan . ${PREDECESSOR_PATH:+$PREDECESSOR_PATH} \
+            > "$plan_path"
+          matrix="$(bash .gyrum/bin/release-artifact-build.sh matrix . "$plan_path" | jq -c .)"
+          printf 'matrix=%s\n' "$matrix" >> "$GITHUB_OUTPUT"
+      - name: Upload build plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-set-build-plan
+          path: ${{ runner.temp }}/deployment-set-build-plan.json
+          retention-days: 30
+
+  publish:
+    name: build + push ${{ matrix.artifact.image }}
+    needs: [prepare-artifacts]
+    strategy:
+      fail-fast: false
+      matrix:
+        artifact: ${{ fromJSON(needs.prepare-artifacts.outputs.matrix).include }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    env:
+      COMMIT: ${{ github.sha }}
+      BRANCH: ${{ github.ref_name }}
+      GIT_SHA: ${{ github.sha }}
+      GIT_SHA_FULL: ${{ github.sha }}
+      GIT_BRANCH: ${{ github.ref_name }}
+      VERSION_TAG: ${{ github.ref_name }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_FLEET_TOKEN: ${{ secrets.GH_FLEET_TOKEN }}
+      NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN || secrets.GITHUB_TOKEN }}
+      GYRUM_DEVTOOLS_READ_TOKEN: ${{ secrets.GYRUM_DEVTOOLS_READ_TOKEN }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch git-lfs objects when declared
+        # warp#11915 class: a repo tracking media in git-lfs must fetch the
+        # objects before Docker builds, or the image ships ~130-byte pointer
+        # files that render fine and serve broken media with nothing red.
+        # Guarded on the repo's own attributes so runners without git-lfs
+        # installed only need it for repos that actually track LFS objects.
+        shell: bash
+        run: |
+          if [ -n "$(git ls-files ':(attr:filter=lfs)')" ]; then
+            git lfs pull
+          else
+            echo "no LFS-tracked files; skipping"
+          fi
+      - name: Compute build timestamp
+        id: build_time
+        run: echo "value=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_OUTPUT"
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Compute image tags + OCI labels
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ matrix.artifact.image }}
+          # ADR-165 keep taxonomy (warp#14588): immutable release tags, sha
+          # pins, and :latest on tag-push only. Rolling :<branch>, v-less
+          # :N.N.N, and floating :N.N / :N shortcuts accumulate as unpruned
+          # "other"-bucket GHCR versions (warp#10508/warp#10424); repos pin
+          # this set in CI (e.g. check-ghcr-tag-discipline.test.sh).
+          tags: |-
+            type=ref,event=tag
+            type=sha,prefix=sha-,format=short
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+      - name: Require declared secret channels
+        env:
+          SECRET_ENVS: ${{ matrix.artifact.secret_envs }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS='=' read -r secret_name _; do
+            [ -n "$secret_name" ] || continue
+            if [ -z "${!secret_name:-}" ]; then
+              echo "::error::required BuildKit secret channel is unavailable: $secret_name"
+              exit 1
+            fi
+          done <<< "$SECRET_ENVS"
+      - name: Build + push
+        id: push
+        uses: docker/build-push-action@v6
+        env:
+          BUILD_TIME: ${{ steps.build_time.outputs.value }}
+        with:
+          context: ${{ matrix.artifact.context }}
+          file: ${{ matrix.artifact.dockerfile }}
+          platforms: ${{ matrix.artifact.platforms }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: ${{ matrix.artifact.build_args }}
+          secret-envs: ${{ matrix.artifact.secret_envs }}
+          cache-from: type=gha,scope=${{ matrix.artifact.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.artifact.name }}
+      - name: Verify image pushed (fail-closed)
+        shell: bash
+        run: |
+          set -euo pipefail
+          # verify_pushed_digest is vendored INLINE from devtools
+          # lib/verify-pushed-digest.sh (warp#14205): the previous anonymous
+          # raw.githubusercontent.com fetch 404s on this private org, so the
+          # helper ships inside the rendered workflow — zero network, zero
+          # credentials. test/release-publish-failclosed.test.sh pins this
+          # embedded copy byte-equal to the lib so the two cannot drift.
+          verify_pushed_digest() {
+            local digest="${1:-}" ref="${2:-}"
+            if [ -z "$ref" ]; then
+              echo "usage: verify_pushed_digest <digest> <tag-ref>" >&2
+              return 2
+            fi
+
+            if [ -z "$digest" ]; then
+              echo "✗ release publish: no digest from the build+push step for '$ref'" \
+                   "— the image did not push. Failing the release (was the GHCR" \
+                   "package linked? token scoped? see ghcr-package-not-linked.md)." >&2
+              return 1
+            fi
+
+            # The push claimed a digest — confirm the tag actually landed in the
+            # registry. A silent 403 / dropped push leaves the tag un-inspectable.
+            if ! docker buildx imagetools inspect "$ref" >/dev/null 2>&1; then
+              echo "✗ release publish: digest '$digest' reported but tag '$ref' is" \
+                   "not present in the registry — the push did not land. Failing the" \
+                   "release (see docs/runbooks/ghcr-package-not-linked.md)." >&2
+              return 1
+            fi
+
+            echo "✓ release publish: '$ref' present in registry (digest $digest)."
+            return 0
+          }
+          first_tag="$(printf '%s\n' "${{ steps.meta.outputs.tags }}" | head -n1)"
+          verify_pushed_digest "${{ steps.push.outputs.digest }}" "$first_tag"
+      - name: Download build plan
+        uses: actions/download-artifact@v4
+        with:
+          name: deployment-set-build-plan
+      - name: Record component build result
+        env:
+          PUBLISHED_DIGEST: ${{ steps.push.outputs.digest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p deployment-set-results
+          bash .gyrum/bin/release-artifact-build.sh record-build \
+            deployment-set-build-plan.json '${{ matrix.artifact.name }}' "$PUBLISHED_DIGEST" \
+            > "deployment-set-results/${{ matrix.artifact.name }}.json"
+      - name: Upload component result
+        uses: actions/upload-artifact@v4
+        with:
+          name: component-result-${{ matrix.artifact.name }}
+          path: deployment-set-results/${{ matrix.artifact.name }}.json
+          retention-days: 30
+
+  finalise-deployment-set:
+    name: aggregate complete deployment-set artifact candidate
+    needs: [prepare-artifacts, publish]
+    # An all-reuse release legitimately skips the publish matrix; the
+    # candidate is still complete because every component reused a live,
+    # registry-proven digest. Anything else short of success refuses.
+    if: >-
+      always() &&
+      needs.prepare-artifacts.result == 'success' &&
+      (needs.publish.result == 'success' || needs.publish.result == 'skipped')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Download build plan
+        uses: actions/download-artifact@v4
+        with:
+          name: deployment-set-build-plan
+      - name: Download component results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: component-result-*
+          merge-multiple: true
+          path: deployment-set-results
+      - name: Aggregate complete artifact candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p deployment-set-results
+          bash .gyrum/bin/release-artifact-build.sh candidate \
+            deployment-set-build-plan.json deployment-set-results \
+            > deployment-set-candidate.json
+          jq -e '.schema == "deployment-set-artifact-candidate/v1"' deployment-set-candidate.json > /dev/null
+      - name: Upload artifact candidate
+        uses: actions/upload-artifact@v4
+        with:
+          name: deployment-set-artifact-candidate
+          path: deployment-set-candidate.json
+          retention-days: 90
+
+  dispatch-catalog-bump:
+    name: pin gyrum-catalog manifest to the released tag
+    needs: [finalise-deployment-set]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Dispatch release-published to gyrum-catalog
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.CATALOG_DISPATCH_PAT || secrets.GH_FLEET_TOKEN }}
+          repository: gyrum-labs/gyrum-catalog
+          event-type: release-published
+          client-payload: |
+            {
+              "owner": "${{ github.repository_owner }}",
+              "project": "${{ github.event.repository.name }}",
+              "version": "${{ github.ref_name }}",
+              "source_run_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}",
+              "source_repository": "${{ github.repository }}",
+              "environment": "production"
+            }

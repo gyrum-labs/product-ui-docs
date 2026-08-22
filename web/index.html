@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>product-ui-docs</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, sans-serif;
+        max-width: 40rem;
+        margin: 4rem auto;
+        padding: 0 1rem;
+        color: #222;
+      }
+      h1 {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+      }
+      .muted {
+        color: #666;
+      }
+      pre {
+        background: #f4f4f4;
+        padding: 1rem;
+        border-radius: 0.25rem;
+        overflow-x: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Hello from product-ui-docs</h1>
+    <p class="muted">
+      This is the placeholder UI scaffolded by <code>gyrum-create-repo</code>.
+      Replace this <code>index.html</code> (and the surrounding
+      <code>web/Dockerfile</code>) with your real frontend build.
+    </p>
+    <h2>Backend version</h2>
+    <pre id="version">loading…</pre>
+    <script>
+      fetch("/api/version")
+        .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
+        .then((j) => {
+          document.getElementById("version").textContent = JSON.stringify(j, null, 2);
+        })
+        .catch((err) => {
+          document.getElementById("version").textContent =
+            "Could not reach /api/version: " + err;
+        });
+    </script>
+  </body>
+</html>

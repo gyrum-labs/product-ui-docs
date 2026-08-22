@@ -1,0 +1,42 @@
+{
+  "$schema": "https://github.com/gyrum-labs/devtools/blob/main/schemas/deployment-contract.schema.json",
+  "schema_version": 1,
+  "deployable": true,
+  "environment": "production",
+  "catalog": {
+    "project": "product-ui-docs",
+    "manifest": "manifests/product-ui-docs.deploy.yaml"
+  },
+  "release": {
+    "workflow": ".github/workflows/release.yml"
+  },
+  "artifacts": [
+    {
+      "name": "backend",
+      "image": "ghcr.io/gyrum-labs/product-ui-docs",
+      "dockerfile": "Dockerfile",
+      "context": ".",
+      "platforms": ["linux/amd64"],
+      "build_arg_names": ["COMMIT", "BRANCH", "BUILD_TIME", "VERSION_TAG"],
+      "secret_names": []
+    },
+    {
+      "name": "frontend",
+      "image": "ghcr.io/gyrum-labs/product-ui-docs-ui",
+      "dockerfile": "web/Dockerfile",
+      "context": "web",
+      "platforms": ["linux/amd64"],
+      "build_arg_names": ["COMMIT", "BRANCH", "BUILD_TIME", "VERSION_TAG"],
+      "secret_names": []
+    }
+  ],
+  "probes": {
+    "health": {
+      "url": "https://product-ui-docs.gyrum.ai/healthz"
+    },
+    "version": {
+      "url": "https://product-ui-docs.gyrum.ai/api/version",
+      "field": "version_tag"
+    }
+  }
+}

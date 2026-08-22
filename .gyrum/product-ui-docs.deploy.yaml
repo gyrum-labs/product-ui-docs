@@ -1,0 +1,55 @@
+# Deploy manifest for the product-ui-docs project.
+# Schema: pkg/deploy/manifest.schema.json
+# Per ADR-092 (host/project separation, two-images-per-project) and
+# ADR-093 (manifest-driven project tools).
+#
+# Validate locally with:
+#   go run ./cmd/validate-deploy-manifest manifests/product-ui-docs.deploy.yaml
+#
+# Before this manifest is merged into gyrum-catalog the operator MUST set:
+#   * host     — the real deploy host (e.g. gyrum-prod-1). The scaffold ships
+#                a fail-fast placeholder, NOT a real host, on purpose: a
+#                wrong-but-plausible default silently deploys to the wrong box.
+#   * hostname — the real DNS name once Caddy is wired
+#   * backend.port — if the backend listens somewhere other than 8080
+project: product-ui-docs
+hostname: product-ui-docs.gyrum.ai
+host: SET-DEPLOY-HOST-BEFORE-MERGE
+backend:
+  image: ghcr.io/gyrum-labs/product-ui-docs
+  # tag: latest (NOT main) — release.yml is tag-push-only; the catalog's
+  # no-tag-main-in-manifests rule forbids the stale :main floating tag.
+  tag: latest
+  port: 8080
+frontend:
+  image: ghcr.io/gyrum-labs/product-ui-docs-ui
+  tag: latest
+# auto_deploy is a mandatory manifest field (gyrum-catalog schema, warp#11081).
+# on_merge:false keeps the project on operator-fired deploys; flip it to true
+# to let the deploy-drift watcher auto-fire deploy-project on origin/main drift.
+auto_deploy:
+  on_merge: false
+db:
+  mode: local
+  persistence: ephemeral
+env_from_vault: []
+# Admin affordances surfaced on the platform UI's tools tab — see
+# ADR-093. Uncomment + fill in once admin tools exist for this project.
+# Each entry's `kind` selects a Svelte handler in ai-frontend's tools
+# registry; mint-token is the only kind shipped in Phase 1.
+# tools:
+#   - kind: mint-token
+#     label: Mint API token
+#     api: POST /api/v1/keys
+#     fields:
+#       - name: label
+#         type: string
+#         required: true
+#       - name: scope
+#         type: select
+#         choices: [user, admin]
+#         default: user
+#         required: true
+#     response:
+#       reveal_field: token
+#       preserve_fields: [id, label, scope]
