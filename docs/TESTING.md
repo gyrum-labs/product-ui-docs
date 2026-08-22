@@ -37,7 +37,7 @@ conventions (fixtures directory, mocking style, snapshot policy). If
 the repo has a coverage floor above the fleet default, say so here and
 link to the threshold override in `.gyrum/debt-thresholds.json`.
 
-**Run:** `_TEMPLATE — the canonical local command, e.g._ `go test ./...` _or_ `npm test`.
+**Run:** `_TEMPLATE — the canonical local command, e.g._ `go test ./...`_or_`npm test`.
 
 ## Layer 2 — 3-persona AI review
 
@@ -77,12 +77,12 @@ this repo, say so and flag it as a gap worth closing.
 
 ## Commands summary
 
-| Layer | Command | Scope |
-|-------|---------|-------|
-| 1 | _TEMPLATE_ e.g. `go test ./...` | This repo's unit tests |
-| 1 | _TEMPLATE_ e.g. `gyrum-review-pr` | Full structural-check suite (CI-equivalent) |
-| 3 | _TEMPLATE_ e.g. `make test-contract` | OpenAPI contract tests |
-| 4 | _TEMPLATE_ e.g. `cd ../distill-gyrum-ai/e2e-integration && make test` | Fleet browser E2E |
+| Layer | Command                                                               | Scope                                       |
+| ----- | --------------------------------------------------------------------- | ------------------------------------------- |
+| 1     | _TEMPLATE_ e.g. `go test ./...`                                       | This repo's unit tests                      |
+| 1     | _TEMPLATE_ e.g. `gyrum-review-pr`                                     | Full structural-check suite (CI-equivalent) |
+| 3     | _TEMPLATE_ e.g. `make test-contract`                                  | OpenAPI contract tests                      |
+| 4     | _TEMPLATE_ e.g. `cd ../distill-gyrum-ai/e2e-integration && make test` | Fleet browser E2E                           |
 
 _TEMPLATE — replace or extend this table with the real commands for
 this repo. Keep it short: the table is a cheat-sheet for "I just

@@ -1,8 +1,7 @@
 {
   "$schema": "https://github.com/gyrum-labs/devtools/blob/main/schemas/deployment-contract.schema.json",
   "schema_version": 1,
-  "deployable": true,
-  "environment": "production",
+  "deployable": false,
   "catalog": {
     "project": "product-ui-docs",
     "manifest": "manifests/product-ui-docs.deploy.yaml"
@@ -16,8 +15,15 @@
       "image": "ghcr.io/gyrum-labs/product-ui-docs",
       "dockerfile": "Dockerfile",
       "context": ".",
-      "platforms": ["linux/amd64"],
-      "build_arg_names": ["COMMIT", "BRANCH", "BUILD_TIME", "VERSION_TAG"],
+      "platforms": [
+        "linux/amd64"
+      ],
+      "build_arg_names": [
+        "COMMIT",
+        "BRANCH",
+        "BUILD_TIME",
+        "VERSION_TAG"
+      ],
       "secret_names": []
     },
     {
@@ -25,8 +31,15 @@
       "image": "ghcr.io/gyrum-labs/product-ui-docs-ui",
       "dockerfile": "web/Dockerfile",
       "context": "web",
-      "platforms": ["linux/amd64"],
-      "build_arg_names": ["COMMIT", "BRANCH", "BUILD_TIME", "VERSION_TAG"],
+      "platforms": [
+        "linux/amd64"
+      ],
+      "build_arg_names": [
+        "COMMIT",
+        "BRANCH",
+        "BUILD_TIME",
+        "VERSION_TAG"
+      ],
       "secret_names": []
     }
   ],
