@@ -43,4 +43,3 @@ In: docs/products/* per-surface journeys + clause ledgers; docs/method.md (the v
 ## Out of scope
 
 Design-system components and tokens (canon owns them). Automating clause governance or lifecycle enforcement beyond the lint script. Onboarding existing products other than ops.gyrum.ai within this effort. Changing production routes to make documentation look complete.
-

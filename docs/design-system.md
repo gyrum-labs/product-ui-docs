@@ -31,4 +31,3 @@ The domain core is the clause model: stable ID, single lifecycle state from {cap
 ## Developer specifics
 
 Stack: plain markdown + one Python 3 stdlib script; no build step. Directories follow the scaffold: docs/products/<product>/ holds journeys.md + clauses.md per surface. Naming: clause IDs CL-<n> stable forever; states lowercase enum. Testing: `bash scripts/ledger-clauses-check.sh` is the gate (also wired as the golden-path check). Gates this repo declares in repo-type.yaml: standard profile with orientation-drift required; deployment contract is merge-only (deployable:false) because no image ships here.
-
