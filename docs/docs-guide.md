@@ -64,8 +64,8 @@ who reads it should understand why the code looks the way it does
 rather than re-litigating settled choices. Link each entry to its
 ADR, warp ticket, or PR so the reasoning chain is recoverable:
 
-| When | What changed | Why / reference |
-|---|---|---|
+| When       | What changed            | Why / reference             |
+| ---------- | ----------------------- | --------------------------- |
 | 2026-08-22 | _the founding decision_ | _ADR / warp#NNNN / PR link_ |
 
 Keep this to the handful of decisions that still shape the code
@@ -80,9 +80,9 @@ At minimum point at the README (router), the userguide (manual), the
 test docs, and any runbooks. The test of this section is that a
 reader never has to grep the tree to find the right document.
 
-| I need to… | Go to |
-|---|---|
-| understand what this repo is | README.md |
-| drive the product | docs/userguide.md |
-| run or extend the tests | docs/TESTING.md |
-| recover from a known failure | docs/runbooks/ |
+| I need to…                   | Go to             |
+| ---------------------------- | ----------------- |
+| understand what this repo is | README.md         |
+| drive the product            | docs/userguide.md |
+| run or extend the tests      | docs/TESTING.md   |
+| recover from a known failure | docs/runbooks/    |

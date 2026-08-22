@@ -39,6 +39,28 @@
         },
         {
           "type": "dir",
+          "name": "products",
+          "children": [
+            {
+              "type": "dir",
+              "name": "ops.gyrum.ai",
+              "children": [
+                {
+                  "type": "file",
+                  "name": "clauses.md",
+                  "path": "docs/products/ops.gyrum.ai/clauses.md"
+                },
+                {
+                  "type": "file",
+                  "name": "journeys.md",
+                  "path": "docs/products/ops.gyrum.ai/journeys.md"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "dir",
           "name": "runbooks",
           "children": [
             {
@@ -85,9 +107,25 @@
           ]
         },
         {
+          "type": "dir",
+          "name": "template",
+          "children": [
+            {
+              "type": "file",
+              "name": "new-product.md",
+              "path": "docs/template/new-product.md"
+            }
+          ]
+        },
+        {
           "type": "file",
           "name": "docs-guide.md",
           "path": "docs/docs-guide.md"
+        },
+        {
+          "type": "file",
+          "name": "method.md",
+          "path": "docs/method.md"
         },
         {
           "type": "file",

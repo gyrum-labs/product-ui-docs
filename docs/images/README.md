@@ -14,11 +14,11 @@ resolve.
 Use short, lowercase, hyphen-separated names that describe the
 **screen** the image shows, not the sequence it appears in:
 
-| Good                          | Avoid                         |
-|-------------------------------|-------------------------------|
-| `tray-idle.png`               | `screenshot-1.png`            |
-| `popup-alarm-ready.png`       | `fig2.png`                    |
-| `settings-empty-state.png`    | `img_20260420_153012.png`     |
+| Good                       | Avoid                     |
+| -------------------------- | ------------------------- |
+| `tray-idle.png`            | `screenshot-1.png`        |
+| `popup-alarm-ready.png`    | `fig2.png`                |
+| `settings-empty-state.png` | `img_20260420_153012.png` |
 
 Two images of the same screen in different states should share a
 prefix: `popup-alarm-typing.png` and `popup-alarm-ready.png` make
