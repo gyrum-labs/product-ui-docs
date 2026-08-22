@@ -20,19 +20,15 @@ tags: []
 
 ## Atomic design breakdown
 
-<!-- TODO: Break the UI into atoms, molecules, organisms, templates, and -->
-<!-- pages. Name the primitives this product owns and how they compose. -->
-<!-- This is the product's OWN design system — it does not inherit the -->
-<!-- gyrum canon (Pin 4: canon is an overlay, not intrinsic to frontend). -->
+This repo owns no UI primitives of its own — it is a documentation product. Its 'atoms' are the document units: the **journey row** (trigger → outcome → screens), the **clause** (stable ID, lifecycle state, outcome, journey linkage, routes, acceptance, evidence), and the **disposition tally**. Molecules are the per-product ledgers (journeys.md + clauses.md); the organism is a complete product record; the template directory is the page tier. Where a future UI is needed (docs-viewer chrome), it consumes gyrum canon components rather than defining any.
+
 
 ## Hexagonal architecture
 
-<!-- TODO: Describe the ports-and-adapters layout: the domain core, the -->
-<!-- driving ports (UI, API), the driven ports (persistence, external -->
-<!-- services), and where the boundaries sit. -->
+The domain core is the clause model: stable ID, single lifecycle state from {captured, drafted, landed}, journey linkage, route-level acceptance, and merged-PR evidence for landed clauses. The driving port is the markdown documents humans and agents edit; the driven port is `scripts/ledger-clauses-check.py`, which reads the ledgers and fails on shape violations. No runtime services sit behind these ports by design — enforcement stays a PR-time lint until clause governance earns automation.
+
 
 ## Developer specifics
 
-<!-- TODO: The concrete developer-facing rules: stack, directory -->
-<!-- conventions, naming, state management, testing approach, and the -->
-<!-- gates this repo declares in its repo-type.yaml gates: block. -->
+Stack: plain markdown + one Python 3 stdlib script; no build step. Directories follow the scaffold: docs/products/<product>/ holds journeys.md + clauses.md per surface. Naming: clause IDs CL-<n> stable forever; states lowercase enum. Testing: `bash scripts/ledger-clauses-check.sh` is the gate (also wired as the golden-path check). Gates this repo declares in repo-type.yaml: standard profile with orientation-drift required; deployment contract is merge-only (deployable:false) because no image ships here.
+

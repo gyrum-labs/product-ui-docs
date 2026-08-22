@@ -19,25 +19,28 @@ tags: []
 
 ## Problem
 
-<!-- TODO: What problem does this project solve? State it concretely — -->
-<!-- the current pain, who feels it, and why now. One or two paragraphs. -->
+Gyrum product surfaces accrete screens with no recorded argument for what belongs. ops.gyrum.ai grew to 82 operator-facing screens across a seven-section rail with duplicate destinations, and nobody could prune it because no home recorded which screens served which journeys or why each was kept. Every future product would repeat the same failure without a durable home for the product-level keep/kill argument.
+
 
 ## Users
 
-<!-- TODO: Who are the users? Name the primary and secondary personas -->
-<!-- and the jobs they are trying to get done. -->
+Primary: fleet agents and reviewers, who must check any surface change against the agreed journey set and clause record before merging (PRs cite clauses). Secondary: jon the operator, who needs the product argument browsable without tribal context; and future product owners, who copy the template at birth so their surfaces are documented from day one.
+
 
 ## Success metrics
 
-<!-- TODO: How will we know this worked? Name the measurable outcomes -->
-<!-- (adoption, latency, conversion, retention) and target thresholds. -->
+- Every in-scope ops.gyrum.ai route carries exactly one current disposition clause with journey linkage (75/75 at seed).
+- ledger-clauses-check passes: well-formed IDs, states, journey/routes lines, landed-evidence-is-a-merged-PR.
+- A newcomer can find journeys, clauses, method, and template unaided (docs-guide gate green).
+- First external adoption: warp.gyrum.ai onboarded as use case two.
+
 
 ## Scope
 
-<!-- TODO: What is in scope for this project? Enumerate the surfaces, -->
-<!-- flows, and capabilities that this project commits to shipping. -->
+In: docs/products/* per-surface journeys + clause ledgers; docs/method.md (the validated process); docs/template/new-product.md; scripts/ledger-clauses-check.py lint; docs-viewer publication. Out of scope lives in the Out-of-scope section; canon vocabulary stays in canon.
+
 
 ## Out of scope
 
-<!-- TODO: What is explicitly NOT in scope? Name the tempting-adjacent -->
-<!-- work being deferred so reviewers and agents do not assume it. -->
+Design-system components and tokens (canon owns them). Automating clause governance or lifecycle enforcement beyond the lint script. Onboarding existing products other than ops.gyrum.ai within this effort. Changing production routes to make documentation look complete.
+
