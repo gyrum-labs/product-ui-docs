@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Runner fleet — arcade mockup pack</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --surface:#ffffff; --surface-2:#f0f2f5; --line:#e1e5ea;
+    --ink:#141920; --body:#3d4553; --muted:#6b7381;
+    --blue:#2f5fd0; --blue-soft:rgba(47,95,208,.08);
+    --green:#1f6d4f; --amber:#9a6410; --rose:#a83a4a;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    --sans:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+    /* the arcade board palette — used inside every canvas */
+    --board:#161e2c; --panel:#1e2839; --panel-2:#263349; --cream:#f2e9d8;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--body);font-family:var(--sans);
+    font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  header.top{padding:34px 30px 22px;max-width:1180px;margin:0 auto}
+  header.top h1{margin:0 0 6px;font-size:27px;color:var(--ink);letter-spacing:-.02em}
+  header.top .sub{margin:0 0 4px;color:var(--muted);max-width:76ch}
+  header.top .meta{font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .livebar{display:flex;gap:14px;flex-wrap:wrap;align-items:center;margin-top:14px;
+    padding:9px 14px;background:var(--surface);border:1px solid var(--line);border-radius:10px;
+    font-family:var(--mono);font-size:12px;color:var(--muted)}
+  .livebar b{color:var(--ink);font-weight:600}
+  .pulse{width:7px;height:7px;border-radius:50%;background:var(--green);display:inline-block;
+    margin-right:6px;box-shadow:0 0 0 3px rgba(31,109,79,.12)}
+  nav.jump{display:flex;gap:8px;flex-wrap:wrap;max-width:1180px;margin:0 auto;padding:0 30px 22px}
+  nav.jump a{font-size:12.5px;padding:6px 11px;border:1px solid var(--line);border-radius:999px;
+    background:var(--surface);color:var(--body)}
+  nav.jump a:hover{border-color:var(--blue);color:var(--blue)}
+  main{max-width:1180px;margin:0 auto;padding:0 30px 40px}
+  section.scr{background:var(--surface);border:1px solid var(--line);border-radius:16px;
+    padding:22px;margin-bottom:26px;box-shadow:0 1px 2px rgba(20,30,50,.04)}
+  .scrhead{display:flex;gap:14px;align-items:baseline;margin-bottom:4px}
+  .scrhead .num{font-family:var(--mono);font-size:12px;color:var(--muted);border:1px solid var(--line);
+    border-radius:6px;padding:2px 7px}
+  .scrhead h2{margin:0;font-size:21px;color:var(--ink);letter-spacing:-.015em}
+  .scrhead .pitch{margin:2px 0 0;color:var(--muted);font-size:13.5px;max-width:84ch}
+  .frame{background:var(--board);border-radius:12px;padding:10px;margin:16px 0 14px;
+    box-shadow:inset 0 0 0 1px rgba(255,255,255,.06), 0 10px 28px rgba(16,22,36,.16)}
+  .frame canvas{display:block;width:100%;height:auto;border-radius:6px;background:var(--board)}
+  .cols{display:grid;grid-template-columns:1.35fr 1fr;gap:22px}
+  .note h4{margin:0 0 7px;font-size:11.5px;letter-spacing:.09em;text-transform:uppercase;
+    color:var(--muted);font-weight:700}
+  .note p{font-size:13.6px;margin:0 0 10px;max-width:74ch}
+  .note p:last-child{margin-bottom:0}
+  .note dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:0;font-size:13px}
+  .note dt{color:var(--muted);font-weight:600;white-space:nowrap}
+  .note dd{margin:0}
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin:2px 0 10px}
+  .chip{display:inline-flex;align-items:center;gap:5px;font-size:11.5px;color:var(--muted);
+    border:1px solid var(--line);border-radius:999px;padding:2px 8px 2px 5px}
+  .chip i{width:11px;height:11px;border-radius:3px;display:inline-block}
+  .live-note{font-family:var(--mono);font-size:11.5px;color:var(--muted);margin-top:12px}
+  footer{max-width:1180px;margin:0 auto;padding:16px 30px 60px;font-family:var(--mono);
+    font-size:11.5px;color:var(--muted);border-top:1px solid var(--line)}
+  footer b{color:var(--body)}
+  @media (max-width:900px){ .cols{grid-template-columns:1fr} }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1>Runner fleet — arcade mockup pack</h1>
+  <p class="sub">Six screens, one live dataset. Each one shows the same thing in a different arcade
+  language: how big every stage is, and how the work moves through them. The point of the pack is
+  direction, not decoration — a designer can take any single screen and build it out.</p>
+  <p class="meta">Live data · gyrum-labs/devtools · every number below is read from the running fleet</p>
+  <div class="livebar">
+    <span><span class="pulse"></span><b id="lb-state">connecting…</b></span>
+    <span>population <b id="lb-pop">—</b></span>
+    <span>heavy slot <b id="lb-slot">—</b></span>
+    <span>throughput <b id="lb-tp">—</b></span>
+    <span>read <b id="lb-read">—</b></span>
+  </div>
+</header>
+
+<nav class="jump">
+  <a href="#marble">01 Marble run</a>
+  <a href="#heap">02 The heap</a>
+  <a href="#city">03 The city</a>
+  <a href="#pinball">04 Pinball board</a>
+  <a href="#line">05 Production line</a>
+  <a href="#cabinets">06 Arcade cabinets</a>
+</nav>
+
+<main>
+
+<!-- ══ 01 MARBLE RUN ══ -->
+<section class="scr" id="marble">
+  <div class="scrhead">
+    <span class="num">01</span>
+    <div>
+      <h2>The marble run</h2>
+      <p class="pitch">A wall-mounted marble run. Everything waiting sits in the bucket at the top; a
+      gate opens and the marbles run down the slope into the next stage.</p>
+    </div>
+  </div>
+  <div class="frame"><canvas id="c-marble" width="1200" height="700"></canvas></div>
+  <div class="cols">
+    <div class="note">
+      <h4>What this screen shows</h4>
+      <p>One marble per pull request, coloured by the stage it is in. The bucket at the top of the
+      slope is the intake: every pull request that is waiting to be processed sits in it. When a
+      pull request's state changes, its marble leaves the bucket, a gate in the wall opens, and the
+      marble rolls down the track to the collector at the end of the next stage.</p>
+      <p>The drum in the middle of the run is the test stage: marbles that roll into it are carried
+      around by the paddles and dropped out the other side, which is what being tested feels like.
+      A stage that needs work goes back up the return lift rather than down the slope, and the
+      collector for each stage holds its marbles in a bowl with the count on the sign above it.</p>
+      <h4>Reading it</h4>
+      <p>The height of each stage's bowl is the honest size of that stage: a bowl full of marbles
+      means a stage that is holding a crowd. A marble in flight is a pull request mid-transition.</p>
+    </div>
+    <div class="note">
+      <h4>Design notes</h4>
+      <div class="chips" id="chips-marble"></div>
+      <dl>
+        <dt>Language</dt><dd>cabinet-style marble run, side elevation</dd>
+        <dt>Sprites</dt><dd>glass marbles with a highlight and a soft shadow; steel channel with a
+        double rail; paddle drum; enamel stage signs</dd>
+        <dt>Motion</dt><dd>gravity along the channel, constant roll speed, marbles settle into the
+        bowl with a small bounce</dd>
+        <dt>Live</dt><dd>one marble per pull request; stage changes drive the motion</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 02 THE HEAP ══ -->
+<section class="scr" id="heap">
+  <div class="scrhead">
+    <span class="num">02</span>
+    <div>
+      <h2>The heap</h2>
+      <p class="pitch">Boxes on belts. Each belt is as long as its stage is big, and the finished
+      work piles up in a heap at the end.</p>
+    </div>
+  </div>
+  <div class="frame"><canvas id="c-heap" width="1200" height="700"></canvas></div>
+  <div class="cols">
+    <div class="note">
+      <h4>What this screen shows</h4>
+      <p>The delivery pipeline as a factory floor. Every pull request is a crate. A crate rides the
+      belt of the stage it is in; the belt is drawn exactly as long as that stage is big, so a stage
+      with eighty pull requests in it is visibly longer than a stage with none. A crate that changes
+      state is lifted to the next belt up.</p>
+      <p>The heap on the right is the finished work. Crates that reach the last stage are tipped off
+      the end of the belt and fall into the heap, where they settle under their own weight. The heap
+      is the backlog that has been delivered and is still lying about.</p>
+      <h4>Reading it</h4>
+      <p>Long belt = big stage. A crate in the air is a state change in flight. The heap is the
+      pile of work that is finished but not yet cleared away.</p>
+    </div>
+    <div class="note">
+      <h4>Design notes</h4>
+      <div class="chips" id="chips-heap"></div>
+      <dl>
+        <dt>Language</dt><dd>side-elevation factory line, arcade cabinet palette</dd>
+        <dt>Sprites</dt><dd>stencilled crates with a stage stripe; roller belts with a tread
+        pattern; a tipping chute; a settling heap</dd>
+        <dt>Motion</dt><dd>belts run at a constant speed; crates hop between belts on a short
+        arc; the heap settles on landing</dd>
+        <dt>Live</dt><dd>one crate per pull request; belt length is drawn from the live count</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 03 THE CITY ══ -->
+<section class="scr" id="city">
+  <div class="scrhead">
+    <span class="num">03</span>
+    <div>
+      <h2>The city</h2>
+      <p class="pitch">A top-down city. Every stage is a district, and every pull request is a
+      resident who walks between districts when their situation changes.</p>
+    </div>
+  </div>
+  <div class="frame"><canvas id="c-city" width="1200" height="700"></canvas></div>
+  <div class="cols">
+    <div class="note">
+      <h4>What this screen shows</h4>
+      <p>The fleet as a city seen from above. Each stage is a district, and the district's size is
+      drawn from the number of pull requests in it: a district with many residents has bigger blocks
+      and taller buildings. The residents stand outside the building of their stage, so the crowd
+      outside a building is that stage's backlog, read at a glance.</p>
+      <p>When a pull request's state changes, its resident walks — out of the district, along the
+      pavement, across the crossing, into the next district. The walk is the change; nothing
+      teleports. The industrial plant in the south-west is the single heavy test slot: it is loaded
+      while a run holds it, and it is the only way onto the heavy lane. The car park in the
+      north-east is the runner pool — one car per runner, and a car leaves the park when its runner
+      picks up work.</p>
+      <h4>Reading it</h4>
+      <p>Residents walking are pull requests mid-transition. A district emptying faster than it
+      fills is work moving forward. Street lights come on at dusk by the real clock.</p>
+    </div>
+    <div class="note">
+      <h4>Design notes</h4>
+      <div class="chips" id="chips-city"></div>
+      <dl>
+        <dt>Language</dt><dd>top-down city plan, tile grid, 1990s city-builder palette</dd>
+        <dt>Sprites</dt><dd>district blocks with roofs, roof plant and drop shadows; pavement and
+        crossing stripes; residents; cars; street lamps; the plant's chimneys</dd>
+        <dt>Motion</dt><dd>residents walk the pavement; cars follow the streets; lamps light at
+        dusk; the plant's smoke drifts</dd>
+        <dt>Live</dt><dd>one resident per pull request; block size is drawn from the live count</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 04 PINBALL ══ -->
+<section class="scr" id="pinball">
+  <div class="scrhead">
+    <span class="num">04</span>
+    <div>
+      <h2>Pinball board</h2>
+      <p class="pitch">The pipeline as a pachinko board. Each stage is a band, and a band is as tall
+      as that stage is big.</p>
+    </div>
+  </div>
+  <div class="frame"><canvas id="c-pinball" width="1200" height="700"></canvas></div>
+  <div class="cols">
+    <div class="note">
+      <h4>What this screen shows</h4>
+      <p>A vertical board. The board is cut into seven horizontal bands, one per stage, and the
+      height of each band is drawn from the number of pull requests in that stage — so the board
+      itself is a picture of the shape of the work. A stage with nothing in it is a thin band; the
+      stage holding eighty pull requests is a wide slab of board.</p>
+      <p>Each pull request is a ball bouncing in its band between the pegs. A ball whose state
+      changes drops through the gate at the bottom of its band into the next one, and the pegs make
+      it scatter on the way down.</p>
+      <h4>Reading it</h4>
+      <p>The band heights are the stage sizes. Balls in flight between two bands are state changes
+      happening. A ball bouncing a lot is a busy stage, not a stuck one.</p>
+    </div>
+    <div class="note">
+      <h4>Design notes</h4>
+      <div class="chips" id="chips-pinball"></div>
+      <dl>
+        <dt>Language</dt><dd>pachinko / pinball board, backlit and slightly dusty</dd>
+        <dt>Sprites</dt><dd>chrome balls with a specular highlight; peg lattice; drop gates;
+        band rails with the stage name engraved</dd>
+        <dt>Motion</dt><dd>real gravity and peg deflection; balls settle in their band with a
+        gentle roll</dd>
+        <dt>Live</dt><dd>one ball per pull request; band heights are drawn from the live counts</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 05 PRODUCTION LINE ══ -->
+<section class="scr" id="line">
+  <div class="scrhead">
+    <span class="num">05</span>
+    <div>
+      <h2>Production line</h2>
+      <p class="pitch">Seven machines down a factory floor. A machine is as tall as its stage is
+      big, and the work rides the belt through it.</p>
+    </div>
+  </div>
+  <div class="frame"><canvas id="c-line" width="1200" height="700"></canvas></div>
+  <div class="cols">
+    <div class="note">
+      <h4>What this screen shows</h4>
+      <p>Each stage is a machine on the line. The machine's height is the size of the stage — a
+      stage holding a crowd of pull requests is a tall machine with a full output tray, and a stage
+      with nothing in it is a stub. The belt runs through every machine, and the work is the crates
+      riding it.</p>
+      <p>A crate that changes state is lifted to the next machine's tray by the overhead arm. The
+      machine's own readout shows the live count and whether the heavy gate has run for it.</p>
+      <h4>Reading it</h4>
+      <p>Tall machine = big stage. The belt is the order of work, left to right. The heavy-gate lamp
+      on each machine is the truth about whether that stage has ever been tested.</p>
+    </div>
+    <div class="note">
+      <h4>Design notes</h4>
+      <div class="chips" id="chips-line"></div>
+      <dl>
+        <dt>Language</dt><dd>arcade factory side view, machine silhouettes on a dark floor</dd>
+        <dt>Sprites</dt><dd>machine bodies with a lit readout, an output tray and a warning lamp;
+        crates; the overhead transfer arm; floor markings</dd>
+        <dt>Motion</dt><dd>belt tread scrolls; the arm swings and sets a crate down; lamps blink
+        on state change</dd>
+        <dt>Live</dt><dd>one crate per pull request; machine height is drawn from the live count</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+
+<!-- ══ 06 ARCADE CABINETS ══ -->
+<section class="scr" id="cabinets">
+  <div class="scrhead">
+    <span class="num">06</span>
+    <div>
+      <h2>Arcade cabinets</h2>
+      <p class="pitch">A song-select screen. Every stage is a cabinet, and a cabinet is as tall as
+      its stage is big.</p>
+    </div>
+  </div>
+  <div class="frame"><canvas id="c-cabinets" width="1200" height="700"></canvas></div>
+  <div class="cols">
+    <div class="note">
+      <h4>What this screen shows</h4>
+      <p>The pick-a-stage screen from a rhythm game, with the real pipeline in it. Each stage is a
+      cabinet standing on the floor of the arcade, and the cabinet's height is the size of that
+      stage — a stage holding eighty pull requests is a cabinet that reaches the ceiling. The
+      marquee on top carries the stage name, and the cabinet's screen carries the live count.</p>
+      <p>The panel on the right is the preview: the stage you have selected, the pull requests in
+      it, and the fleet's high score — the throughput the fleet is holding right now. Selecting a
+      cabinet is what the pointer does; nothing here is decoration, every panel is a live number.</p>
+      <h4>Reading it</h4>
+      <p>Cabinet height = stage size. The marquee lamps chase along the selected cabinet. The
+      preview panel lists the actual pull requests in the selected stage.</p>
+    </div>
+    <div class="note">
+      <h4>Design notes</h4>
+      <div class="chips" id="chips-cabinets"></div>
+      <dl>
+        <dt>Language</dt><dd>arcade cabinet select screen, CRT curvature and scanlines</dd>
+        <dt>Sprites</dt><dd>cabinet bodies with lit side art, marquees, a screen with a live
+        count, a preview panel and a high-score table</dd>
+        <dt>Motion</dt><dd>marquee lamps chase; the selected cabinet pulses and the preview
+        switches; the screen flickers faintly</dd>
+        <dt>Live</dt><dd>one cabinet per stage; cabinet height is drawn from the live count</dd>
+      </dl>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <p><b>Source</b> one live payload from the fleet: the runner registry, the Actions runs, and the
+  merge train's own projection. <b>Credentials</b> stay on the server; this page never sees a
+  token. <b>Refresh</b> every 25 seconds.</p>
+  <p><b>Backend</b> <span id="f-ver">—</span> · <b>Dashboard build</b> <span id="f-built">—</span>
+  · <b>read</b> <span id="f-read">—</span></p>
+</footer>
+
+<script src="/mockups.js"></script>
+</body>
+</html>
