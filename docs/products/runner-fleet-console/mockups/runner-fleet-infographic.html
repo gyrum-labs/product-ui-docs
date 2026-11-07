@@ -1,0 +1,2210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Runner fleet — live</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --surface:#ffffff; --surface-2:#f0f2f5; --line:#e1e5ea;
+    --ink:#141920; --body:#3d4553; --muted:#6b7381;
+    --blue:#2f5fd0; --blue-soft:rgba(47,95,208,.08);
+    --green:#1f6d4f; --green-soft:rgba(31,109,79,.09);
+    --amber:#9a6410; --amber-soft:rgba(154,100,16,.10);
+    --rose:#a83a4a; --rose-soft:rgba(168,58,74,.09);
+    --violet:#6d4bb0;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    --sans:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--body);font-family:var(--sans);
+    font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+  a{color:var(--blue);text-decoration:none}
+  .wrap{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh}
+
+  /* rail */
+  .rail{background:var(--surface);border-right:1px solid var(--line);padding:18px 0;position:sticky;top:0;height:100vh;overflow:auto}
+  .brand{padding:0 18px 14px;border-bottom:1px solid var(--line);margin-bottom:8px}
+  .brand h1{margin:0 0 3px;font-size:15px;color:var(--ink);letter-spacing:-.01em}
+  .brand p{margin:0;font-size:11.5px;color:var(--muted)}
+  .rail nav a{display:flex;gap:9px;align-items:center;padding:9px 18px;color:var(--body);font-size:13.6px;border-left:3px solid transparent}
+  .rail nav a:hover{background:var(--surface-2)}
+  .rail nav a.on{border-left-color:var(--blue);color:var(--ink);background:var(--blue-soft);font-weight:600}
+  .rail nav .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex:none}
+  .rail nav a.on .dot{background:var(--blue);box-shadow:0 0 0 3px var(--blue-soft)}
+  .rail-foot{margin-top:14px;padding:12px 18px 0;border-top:1px solid var(--line);font-size:11.5px;color:var(--muted)}
+
+  /* main */
+  main{min-width:0;padding:22px 28px 70px}
+  .top{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin-bottom:4px}
+  .top h2{margin:0;font-size:25px;color:var(--ink);letter-spacing:-.02em}
+  .live{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--mututed);
+    font-family:var(--mono)}
+  .pulse{width:7px;height:7px;border-radius:50%;background:var(--green)}
+  .clock{display:inline-flex;align-items:center;gap:5px}
+  .clock .dial{width:13px;height:13px;border-radius:50%;border:1.5px solid var(--muted);
+    position:relative;flex:none}
+  .clock .dial::after{content:"";position:absolute;left:50%;top:1px;width:1.5px;height:4.5px;
+    background:var(--muted);border-radius:1px;transform-origin:50% 100%;animation:tick 1s steps(12) infinite}
+  @keyframes tick{to{transform:rotate(360deg)}}
+  .clock.busy .dial{border-color:var(--amber)}
+  .clock.busy .dial::after{background:var(--amber)}
+  tr.moved{animation:moved 2.4s ease-out}
+  @keyframes moved{0%{background:var(--blue-soft)}70%{background:var(--blue-soft)}100%{background:transparent}}
+  .cave{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:16px}
+  .cave canvas{width:100%;height:520px;display:block;border-radius:9px;background:#fbfcfd;
+    border:1px solid var(--line)}
+  .cave .cap{font-size:12.5px;color:var(--muted);margin-top:9px}
+  .gauges{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:12px;margin-bottom:18px}
+  .gauge{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;text-align:center}
+  .gauge .gv{font-size:25px;color:var(--ink);font-weight:600;letter-spacing:-.02em;margin-top:2px}
+  .gauge .gk{font-size:11.5px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  .gauge .gs{font-size:12px;color:var(--muted)}
+  .bars{margin:6px 0 0}
+  .barrow{display:grid;grid-template-columns:150px 1fr 76px;gap:10px;align-items:center;padding:4px 0}
+  .barrow .bn{font-family:var(--mono);font-size:12px;color:var(--body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .barrow .bt{height:9px;border-radius:5px;background:var(--surface-2);overflow:hidden}
+  .barrow .bt i{display:block;height:100%;background:var(--blue);border-radius:5px}
+  .barrow .bv{font-family:var(--mono);font-size:12px;color:var(--muted);text-align:right}
+  .tl{position:relative;height:240px;margin-top:8px;border-left:1px solid var(--line);
+    border-bottom:1px solid var(--line);padding-left:0}
+  .tlrow{position:relative;height:16px}
+  .tlbar{position:absolute;height:9px;border-radius:4px;top:3px}
+  .tlaxis{position:absolute;left:0;right:0;bottom:-22px;display:flex;justify-content:space-between;
+    font-size:11px;color:var(--muted);font-family:var(--mono)}
+  .summary{font-size:14px;color:var(--body);max-width:78ch}
+  .about{background:var(--surface);border:1px solid var(--line);border-radius:12px;
+    padding:18px 20px;margin:22px 0 8px}
+  .about h4{margin:0 0 8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--muted);font-weight:700}
+  .about p{font-size:13.8px;color:var(--body);max-width:80ch;margin:0 0 10px}
+  .about p:last-child{margin-bottom:0}
+  .about dl{display:grid;grid-template-columns:auto 1fr;gap:4px 16px;margin:10px 0 0;
+    font-size:13.2px;max-width:80ch}
+  .about dt{color:var(--muted);font-weight:600;white-space:nowrap}
+  .about dd{margin:0}
+  .foot{margin:34px auto 0;max-width:920px;padding:16px 40px 0;border-top:1px solid var(--line);
+    font-family:var(--mono);font-size:11.5px;color:var(--muted);line-height:1.7}
+  .foot b{color:var(--body);font-weight:600}
+  .summary strong{color:var(--ink)}
+  .lede{margin:2px 0 20px;max-width:78ch;color:var(--muted)}
+  .view{display:none}
+  .view.on{display:block}
+
+  /* tiles */
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:12px;margin-bottom:22px}
+  .tile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px 16px;min-width:0}
+  .tile .k{font-size:11.5px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:600}
+  .tile .v{font-size:30px;color:var(--ink);font-weight:600;line-height:1.15;margin-top:4px;letter-spacing:-.02em;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .tile .s{font-size:12.5px;color:var(--muted);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tile.good .v{color:var(--green)} .tile.warn .v{color:var(--amber)} .tile.bad .v{color:var(--rose)}
+  .tile.info .v{color:var(--blue)}
+
+  /* checkerboard */
+  .board{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px}
+  .board h3{margin:0 0 3px;font-size:15px;color:var(--ink)}
+  .board p.hint{margin:0 0 16px;font-size:12.5px;color:var(--muted)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(74px,1fr));gap:9px}
+  .cell{position:relative;aspect-ratio:1;border-radius:11px;border:1px solid var(--line);
+    background:var(--surface-2);display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:3px;cursor:pointer;transition:transform .14s ease,box-shadow .14s ease;overflow:hidden}
+  .cell:hover{transform:translateY(-2px);box-shadow:0 8px 20px rgba(0,0,0,.4)}
+  .cell .nm{font-family:var(--mono);font-size:11px;color:var(--ink);text-align:center;padding:0 4px;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
+  .cell .st{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+  .cell.busy{border-color:var(--amber);background:var(--amber-soft)}
+  .cell.busy .st{color:var(--amber)}
+  .cell.idle{border-color:rgba(31,109,79,.45);background:var(--green-soft)}
+  .cell.idle .st{color:var(--green)}
+  .cell.off{opacity:.5}
+  .cell.heavy{border-color:var(--blue)}
+  .cell .spin{position:absolute;top:0;left:0;right:0;height:2px;background:currentColor;opacity:.0}
+  .cell.busy .spin{opacity:.55;background:var(--amber)}
+  .cell.idle .spin{opacity:.30;background:var(--green)}
+  .cell{transition:border-color .18s ease,background-color .18s ease,transform .12s ease}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:16px;font-size:12px;color:var(--muted)}
+  .legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+  .chain{display:flex;gap:0;flex-wrap:wrap;align-items:stretch;margin:6px 0 16px}
+  .node{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:112px;
+    position:relative}
+  .node.done{background:var(--green-soft);border-color:rgba(31,109,79,.35)}
+  .node.now{background:var(--blue-soft);border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-soft)}
+  .node.wait{opacity:.72}
+  .node h5{margin:0 0 2px;font-size:11.5px;letter-spacing:.03em;color:var(--ink);font-weight:600}
+  .node .c{font-size:11px;color:var(--muted);font-family:var(--mono)}
+  .node.now .c{color:var(--blue)}
+  .arrow{align-self:center;color:var(--muted);padding:0 7px;font-size:13px}
+  .stagebar{display:flex;gap:3px;margin:7px 0 3px}
+  .stagebar i{height:6px;flex:1;border-radius:3px;background:var(--surface-2)}
+  .stagebar i.done{background:var(--green)} .stagebar i.now{background:var(--blue)} .stagebar i.bad{background:var(--rose)}
+
+  /* table */
+  table{width:100%;border-collapse:collapse;font-size:13.4px;margin:14px 0}
+  th,td{text-align:left;padding:9px 11px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.06em;font-weight:600;
+    background:var(--surface);position:sticky;top:0}
+  tbody tr:hover{background:var(--surface)}
+  td.mono,th.mono{font-family:var(--mono);font-size:12.4px}
+  .pill{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600}
+  .pill.ok{background:var(--green-soft);color:var(--green)}
+  .pill.bad{background:var(--rose-soft);color:var(--rose)}
+  .pill.warn{background:var(--amber-soft);color:var(--amber)}
+  .pill.mut{background:var(--surface-2);color:var(--muted)}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:16px}
+  .card h3{margin:0 0 4px;font-size:16px;color:var(--ink)}
+  .card p{margin:0 0 10px;font-size:13.6px}
+  .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px}
+
+  /* movement */
+  .flow{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;align-items:stretch}
+  .stage{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;position:relative;overflow:hidden}
+  .stage h4{margin:0 0 3px;font-size:12.5px;color:var(--ink);text-transform:uppercase;letter-spacing:.07em}
+  .stage .n{font-size:24px;color:var(--ink);font-weight:600}
+  .stage .s{font-size:11.5px;color:var(--muted)}
+  .stage .flowdots{position:absolute;inset:auto 0 0 0;height:2px;background:var(--line)}
+  .stage .flowdots i{position:absolute;top:0;left:0;width:34%;height:100%;background:var(--blue);opacity:.5;
+    animation:slide 4.5s linear infinite}
+  .stage.busy .flowdots i{background:var(--amber)}
+  .stage.held .flowdots i{background:var(--rose)}
+  @keyframes slide{0%{left:-34%}100%{left:100%}}
+  .lane{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}
+  .chip{font-family:var(--mono);font-size:11.5px;padding:5px 9px;border-radius:7px;background:var(--surface-2);
+    border:1px solid var(--line);color:var(--body)}
+  .chip.q{border-style:dashed;color:var(--muted)}
+  .chip.r{background:var(--rose-soft);border-color:rgba(168,58,74,.35);color:var(--rose)}
+
+  /* runner detail */
+  .detail .hd{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+  .detail .hd h2{margin:0;font-size:23px;color:var(--ink)}
+  .back{font-size:13px;margin-bottom:14px;display:inline-block}
+  .bar{height:7px;border-radius:6px;background:var(--surface-2);overflow:hidden;margin:6px 0 14px}
+  .bar i{display:block;height:100%;background:var(--blue)}
+  .bar i.ok{background:var(--green)} .bar i.warn{background:var(--amber)} .bar i.bad{background:var(--rose)}
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:5px 16px;font-size:13.4px;margin:0}
+  .kv dt{color:var(--muted)} .kv dd{margin:0;font-family:var(--mono);font-size:12.6px}
+  .feed{max-height:460px;overflow:auto;border:1px solid var(--line);border-radius:10px}
+  .feed div{padding:7px 12px;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:12.2px;
+    display:flex;gap:10px;align-items:center}
+  .feed div:last-child{border-bottom:0}
+  .feed .t{color:var(--muted);min-width:74px}
+  .feed .w{color:var(--violet)}
+  .note{font-size:12.5px;color:var(--muted);margin-top:10px}
+  @media (max-width:860px){
+    .wrap{grid-template-columns:1fr}
+    .rail{position:relative;height:auto}
+    main{padding:16px}
+    .top h2{font-size:21px}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <aside class="rail">
+    <div class="brand">
+      <h1>Runner fleet</h1>
+      <p>live · gyrum-labs/devtools</p>
+    </div>
+    <nav id="nav"></nav>
+    <div class="rail-foot">
+      One payload, polled every 25s. The server holds the credentials;
+      the browser never sees a token.
+    </div>
+  </aside>
+
+  <main>
+    <div class="top">
+      <h2 id="viewtitle">Home</h2>
+      <span class="live"><span class="pulse"></span>
+        <span class="clock" id="clock"><span class="dial"></span><span id="stamp">connecting…</span></span></span>
+    </div>
+    <p class="lede" id="lede"></p>
+    <div id="errbar" style="display:none;background:#a83a4a;color:#fff;padding:9px 13px;border-radius:9px;margin:0 0 16px;font-family:var(--mono);font-size:12.5px"></div>
+
+    <!-- ══ HOME ══ -->
+    <section class="view" id="v-home">
+      <div class="tiles" id="home-tiles"></div>
+      <div class="card">
+        <h3>The fleet, as a checkerboard</h3>
+        <p class="hint">One square per runner. Green is idle and taking work, amber is busy, grey is
+          offline, and a blue edge marks a runner that is enrolled for the heavy lane. Busy squares
+          carry a moving sheen; a click opens that runner's own page.</p>
+        <div class="grid" id="home-grid"></div>
+        <div class="legend">
+          <span><i style="background:linear-gradient(150deg,rgba(62,207,142,.35),#1c222d)"></i>idle</span>
+          <span><i style="background:linear-gradient(150deg,rgba(240,180,41,.35),#1c222d)"></i>busy</span>
+          <span><i style="background:#1c222d;border:1px solid #262e3b"></i>offline</span>
+          <span><i style="background:#1c222d;border:1px solid #5b8cff"></i>heavy-lane enrolled</span>
+        </div>
+      </div>
+      <div class="cols" id="home-cols"></div>
+    <div class="about"><h4>About this page</h4>
+<p>This is the front door: the fleet as one picture, and the three numbers that decide whether
+  anything is moving. <strong>Runners</strong> is how many the registry knows; <strong>busy</strong> is how many
+  are holding a job right now. <strong>Running jobs</strong> and <strong>queued jobs</strong> are the work in
+  flight and the work waiting for a runner to pick it up.</p>
+<p><strong>The heavy slot</strong> is the repo's single heavy-CI lane. Every heavy devtools run shares it, so
+  one run at a time validates against main — and one long-held slot starves every other pull request. The
+  <strong>queue depth</strong> is the train's service order, and the <strong>head</strong> is the pull request
+  it serves next. <strong>Train</strong> is the state of that read.</p>
+<p>Below, the checkerboard is one square per runner: green idle, amber busy, grey offline, blue edge for
+  heavy-lane enrolment. Click a square to open that runner's own page. The two cards at the bottom name
+  the runners currently holding work and describe the head of the queue.</p>
+<dl><dt>Live from</dt><dd>warp's runner registry and the GitHub Actions run history, read every
+  25 seconds by a local server that holds the credentials</dd><dt>Refresh</dt><dd>the clock in the top
+  right ticks while the payload is being fetched</dd></dl></div>
+    </section>
+
+    <!-- ══ RUNNERS ══ -->
+    <section class="view" id="v-runners">
+      <div class="card">
+        <h3>Every runner</h3>
+        <p class="hint">Sorted by what they are doing, then by name. Click any row for its own page.</p>
+        <div id="runner-table"></div>
+      </div>
+    <div class="about"><h4>About this page</h4>
+<p>Every runner the fleet's registry knows about, sorted so the ones doing work come first. Each row
+  gives the runner's name and host, its class and lane, whether it is busy, the job it is holding, the
+  labels that decide which work it may take, and when the registry last heard from it.</p>
+<p>The labels are the contract: <span class="mono">slow-capped</span> marks the runners that may take the
+  heavy lane, <span class="mono">heavy</span> marks the one enrolled for the heaviest work, and the memory
+  labels (<span class="mono">mem-3gb</span>, <span class="mono">mem-14gb</span>) mark what a job must ask
+  for. A runner that is online but not eligible for the labels a queued job needs cannot help it.</p>
+<dl><dt>Reading it</dt><dd>busy first, then idle; the registry is the fleet's own view, refreshed
+  continuously, so a runner that has just gone quiet may still be draining</dd></dl></div>
+    </section>
+
+    <!-- ══ RUNNER DETAIL ══ -->
+    <section class="view" id="v-detail">
+      <a class="back" href="#runners">← all runners</a>
+      <div class="detail" id="detail-body"></div>
+    <div class="about"><h4>About this page</h4>
+<p>One runner in detail: the host it lives on and that host's architecture, the labels it carries, when
+  the registry last saw it, and the telemetry the host reports for its disk, CPU and memory.</p>
+<p>The job list underneath is the work that runner has published in the current window. The telemetry
+  matters most when a job on this runner is the one that failed: disk exhaustion and a slow or loaded
+  host look identical from the job's own log, and the numbers are what tell them apart.</p>
+<dl><dt>Reading it</dt><dd>disk used and free against the host's health, then CPU and memory load
+  against the job it was running</dd></dl></div>
+    </section>
+
+    <!-- ══ MEASUREMENTS ══ -->
+    <section class="view" id="v-measure">
+      <div class="card">
+        <h3>How long a job actually takes</h3>
+        <p class="hint">Measured from the GitHub Actions run history. The heavy shard costs about
+          fifteen minutes on every host, the nuc included — the slow lane is the work, not the host.</p>
+        <div id="measure-table"></div>
+      </div>
+      <div class="card">
+        <h3>The same measurement, by host</h3>
+        <p class="hint">Averages over every heavy shard the fleet has recorded for each runner.</p>
+        <div id="measure-byhost"></div>
+      </div>
+    <div class="about"><h4>About this page</h4>
+<p>How long work actually takes, measured from the jobs the fleet has published rather than from an
+  estimate. Every row is one job: the runner that took it, the lane it belongs to, the wall time
+  between its start and its end, and how it ended.</p>
+<p>The point of the second table is the comparison between hosts. A heavy shard costs about fifteen
+  minutes on every machine, including the <span class="mono">nuc</span> hosts — the slow lane is the
+  work, not the hardware, and a shard that fails on one host is not evidence that host is the problem.</p>
+<dl><dt>Reading it</dt><dd>the heavy lane at the top of the table, the light lane at the bottom; the
+  per-host table averages the heavy shards only</dd><dt>Live</dt><dd>recomputed from the observed jobs
+  on every refresh</dd></dl></div>
+    </section>
+
+    <!-- ══ STAGES ══ -->
+    <section class="view" id="v-stages">
+      <div class="card">
+        <h3>The pipeline, stage by stage</h3>
+        <p class="hint">The order the heavy lane runs its jobs in. A filled stage is done, a ringed
+          stage is where the work is now, and a faint stage has not started.</p>
+        <div class="chain" id="stage-chain"></div>
+      </div>
+      <div class="card" id="stage-runs-card">
+        <h3>Where each run is</h3>
+        <p class="hint">One row per run: its stages as pips, and the jobs sitting at the live stage.</p>
+        <div id="stage-runs"></div>
+      </div>
+    <div class="about"><h4>About this page</h4>
+<p>The heavy lane's job order, stage by stage: triage decides whether a diff is heavy at all, the
+  isolation and cache stages prepare the workspace, shellcheck lints the changed shell, build-vet
+  produces the artifact the shards need, the plan stage splits the work into shards, the shards run,
+  the frontend capture and node tests run alongside, the aggregate job rolls the shards up into the
+  one required check, and the failure report is posted before the merge.</p>
+<p>A filled stage is done, a ringed stage is where the work is now, and a faint stage has not started.
+  The table below shows the same progression per run, as pips, with the jobs sitting at the live stage
+  named beside them.</p>
+<dl><dt>Reading it</dt><dd>a stall in the shard stage means the shards are running or waiting for a
+  runner; a stall in the plan stage usually means the plan is waiting for the build-vet artifact</dd></dl></div>
+    </section>
+
+    <!-- ══ SHARD USAGE ══ -->
+    <section class="view" id="v-usage">
+      <div class="tiles" id="usage-tiles"></div>
+      <div class="cols" style="grid-template-columns:1fr">
+        <div class="card">
+          <h3>Shards, by run</h3>
+          <p class="hint">How many each run asked for, and how many are running, queued and finished.</p>
+          <div id="usage-runs"></div>
+        </div>
+        <div class="card">
+          <h3>Pool utilisation</h3>
+          <p class="hint">Where the work is landing, by runner, and how much each host carried.</p>
+          <div id="usage-pool"></div>
+        </div>
+      </div>
+    <div class="about"><h4>About this page</h4>
+<p>Shard usage, in two halves. The first table is per run: how many shards the run asked for, how many
+  it has been seen running, queued and finished. A run whose plan is wider than the shards seen is a
+  run whose shard list has not fully appeared yet; a run with shards queued but no free capacity is a
+  run waiting on the pool.</p>
+<p>The second table is where the work landed: how many jobs each runner took and how many minutes it
+  carried, with the busiest host at the top. The fleet's own capacity summary — total, permanent and
+  burst slots — sits above both.</p>
+<dl><dt>Reading it</dt><dd>a healthy run shows most shards finished and none queued; the pool
+  utilisation tells you whether the queue is the fleet's problem or the plan's</dd></dl></div>
+    </section>
+
+    <!-- ══ DELIVERY ══ -->
+    <section class="view" id="v-delivery">
+      <div class="tiles" id="delivery-tiles"></div>
+      <div class="card">
+        <h3>The two objectives</h3>
+        <p class="hint">Every row carries both. Green is inside the target, amber is past half of it, red is past it.</p>
+        <dl class="kv">
+          <dt>Time to be seen</dt><dd>how long a pull request waited before the fleet picked it up —
+            <strong>target: under 24 hours</strong>. Measured from when the pull request opened to the
+            moment it joined the train.</dd>
+          <dt>Time to process</dt><dd>how long it has waited in the train since —
+            <strong>target: under an hour</strong>. Measured from the enqueue record to now, or to the
+            moment it was merged.</dd>
+        </dl>
+        <p class="hint" style="margin-top:10px">A pull request outside the train has no enqueue record, so
+          it has no time to be seen or to process — those rows read as —.</p>
+      </div>
+      <div class="card">
+        <h3>How these buckets are decided</h3>
+        <p class="hint">The board's phase vocabulary lives in the warp service, so these are derived
+          here from what can be measured: the pull request's own state, its check rollup, its review
+          decision, the train's labels, the owning ticket's status, and the heavy gate's own run list
+          — the last one, because the rollup alone cannot see the heavy lane.</p>
+        <div id="delivery-rules"></div>
+      </div>
+      <div id="delivery-tables"></div>
+    <div class="about"><h4>About this page</h4>
+<p>Every pull request, bucketed by how far it has got. The board's own phase vocabulary lives in the
+  warp service, so these buckets are derived here from what can be measured: the pull request's state,
+  its check rollup, its review decision, the train's labels and the owning ticket's status.</p>
+<p><strong>Waiting</strong> is open, not green and nobody is holding it. <strong>Waiting fixed</strong> has
+  changes requested or a conflict on the train. <strong>In testing</strong> has the heavy gate running on its
+  current head. <strong>Passed</strong> is green and approved, waiting its turn. <strong>Waiting for deployment</strong> is
+  merged with the delivery tail outstanding. <strong>Deployed</strong> is merged and delivered within a day;
+  <strong>done</strong> is merged and settled.</p>
+<p>The <strong>Heavy</strong> column is the one that matters most, and it exists because the check rollup
+  cannot be trusted on its own. The heavy gate is a single-slot workflow that fires only when the train marks
+  its one current candidate ready for review, so it has no check run at all until a runner picks it up, and a
+  pull request whose head moved after that transition never gets one. The light lane is green in seconds, so
+  the rollup reads <span class="mono">SUCCESS</span> and the pull request looks tested when it has not been.
+  The column reads the heavy gate's own run list instead: <strong>not run</strong> means the gate has never run
+  on that head, <strong>queued</strong> means it is waiting for the single slot, <strong>running</strong> means
+  it is on a runner now, and <strong>failed</strong> means the gate ran and went red.</p>
+<dl><dt>Reading it</dt><dd>the sizes of the first three buckets are the real signal: a long
+  "waiting" bucket means the fleet is not picking work up, and a "passed" bucket full of
+  <em>not run</em> means the gate has not been reached rather than that the work is sound</dd></dl></div>
+    </section>
+
+    <!-- ══ SHARD CAVES ══ -->
+    <section class="view" id="v-caves">
+      <div class="cave">
+        <h3 style="margin:0 0 4px;font-size:16px;color:var(--ink)">The jobs, as clusters of shards</h3>
+        <p class="cap" style="margin:0 0 12px">One cluster per live job. The core is the job; the shards around it
+          are that job's own test shards, held to the core by springs. They fall into the caves and jostle.</p>
+        <canvas id="cave-canvas"></canvas>
+        <p class="cap" id="cave-cap"></p>
+      </div>
+      <div class="card">
+        <h3>What the clusters are</h3>
+        <p class="hint">Built from the live job feed. A job's cluster is as wide as its shard count, so a
+          seven-shard run is visibly bigger than a one-job cron. Colour follows the lane: heavy shards are
+          blue, gates are slate, medium work is green, light jobs are pale.</p>
+        <div id="cave-legend"></div>
+      </div>
+    <div class="about"><h4>About this page</h4>
+<p>Every job as a physical thing. The core is the job; the shards around it are that job's own test
+  shards, held to the core by springs. A cluster's width is its shard count, so a seven-shard run is
+  visibly larger than a one-job cron, and the ledges are the caves they fall into and settle against.</p>
+<p>Nothing here is a metaphor the fleet reads back — it is the live job feed arranged as bodies, so you
+  can see at a glance how many jobs are in flight and how their shard counts are distributed.</p>
+<dl><dt>Reading it</dt><dd>clusters settle lower as they fill the caves; a cluster that keeps drifting
+  is one whose shards are still moving</dd></dl></div>
+    </section>
+
+    <!-- ══ DASHBOARD ══ -->
+    <section class="view" id="v-dash">
+      <div class="gauges" id="dash-gauges"></div>
+      <div class="cols">
+        <div class="card">
+          <h3>What is running, and when</h3>
+          <p class="hint">Every job the fleet has published in the last hour, on its own runner's
+            row. A bar is the job's life: when it started to when it ended.</p>
+          <div id="dash-timeline"></div>
+        </div>
+        <div class="card">
+          <h3>Where the work landed</h3>
+          <p class="hint">Jobs and minutes carried, by runner.</p>
+          <div id="dash-bars"></div>
+        </div>
+      </div>
+      <div class="cols">
+        <div class="card">
+          <h3>Throughput</h3>
+          <p class="hint">How much work the fleet gets through. The live figure is the trailing
+            sixty minutes; the rest are averages over their window.</p>
+          <div id="dash-throughput"></div>
+        </div>
+        <div class="card">
+          <h3>The fleet's own live work</h3>
+          <p class="hint">The registry's view: every job category it is watching, across every
+            repository — not only devtools.</p>
+          <div id="dash-categories"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>What the fleet is doing</h3>
+        <div class="summary" id="dash-summary"></div>
+      </div>
+    <div class="about"><h4>About this page</h4>
+<p>The same live state, read as instruments. The four gauges are pool utilisation, the share of observed
+  shards that have finished, the pass rate of finished jobs, and whether the single heavy lane is held or
+  free — the last being the number that explains most of the queue's behaviour.</p>
+<p>The timeline plots every job's life across the last three hours on its own runner's row: a bar is the
+  job from its start to its end, coloured by how it ended. The bars beside it count jobs and minutes
+  carried per runner. The text at the bottom is the same data written out, so a screenshot carries the
+  meaning with it.</p>
+<dl><dt>Reading it</dt><dd>the timeline's horizontal axis is three hours; the right edge is now
+  </dd><dt>Source</dt><dd>warp's runner registry and the GitHub Actions run history</dd></dl></div>
+    </section>
+
+    <!-- ══ PATTERNS ══ -->
+    <section class="view" id="v-patterns">
+      <div class="cols">
+        <div class="card">
+          <h3>The wait ladder</h3>
+          <p class="hint">Every pull request in the queue, by how long it has been waiting. The train
+            serves the head first, so the long bars at the top are the ones that matter.</p>
+          <div id="pat-waits"></div>
+        </div>
+        <div class="card">
+          <h3>What the time is made of</h3>
+          <p class="hint">Every observed job, by the lane it belongs to.</p>
+          <div id="pat-donut"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>When the fleet is busy</h3>
+        <p class="hint">One row per runner, one column per five minutes across the last hour. Darker is
+          more work in flight.</p>
+        <div id="pat-heat"></div>
+      </div>
+      <div class="card">
+        <h3>Each runner's own line</h3>
+        <p class="hint">Jobs per runner across the last hour — the shape of one runner's day.</p>
+        <div id="pat-spark"></div>
+      </div>
+    <div class="about"><h4>About this page</h4>
+<p>The shape of the work rather than its state. <strong>The wait ladder</strong> ranks every pull
+  request in the queue by how long it has waited — the train serves the head first, so the long bars at
+  the top are the ones that decide when the queue moves.</p>
+<p><strong>What the time is made of</strong> splits the observed jobs by lane. <strong>When the fleet is
+  busy</strong> is a heatmap of runners against five-minute buckets across the last hour. <strong>Each
+  runner's own line</strong> gives one runner's activity as a sparkline, so a runner that is busy in
+  bursts reads differently from one that is steady.</p>
+<dl><dt>Reading it</dt><dd>a wait ladder with one very long bar and a long flat tail means one pull
+  request is holding everything behind it</dd></dl></div>
+    </section>
+
+    <!-- ══ SPRITES ══ -->
+    <section class="view" id="v-sprites">
+      <div class="cave">
+        <h3 style="margin:0 0 4px;font-size:16px;color:var(--ink)">Five ways to see the same fleet</h3>
+        <p class="cap" style="margin:0 0 12px">Every panel is driven by the same live payload: how many
+          runners are busy, how many jobs are running or queued, and how long each has been at it.</p>
+        <canvas id="sprite-canvas" height="900"></canvas>
+        <p class="cap" id="sprite-cap"></p>
+      </div>
+    <div class="about"><h4>About this page</h4>
+<p>Five ways of drawing the same fleet, so you can see which one carries the truth best. A
+  <strong>bowl of fish</strong>: one fish per busy runner, the water level rising with utilisation.
+  <strong>Rain into a basin</strong>: one drop per job, running and queued. <strong>Stacking blocks</strong>:
+  one column per runner, blue for the heavy lane. <strong>A constellation</strong>: one star per runner
+  and one line per job. <strong>Radar</strong>: a sweep over the pool with a blip for each busy
+  runner.</p>
+<p>Everything moves. Each panel runs a small swarm: the bodies repel one another, are pulled toward an
+  anchor, wander a little and are damped by drag, so nothing sits still and the arrangement is never
+  exactly the same twice.</p>
+<dl><dt>Reading it</dt><dd>the panels are alternate readings of one payload — use whichever makes the
+  state obvious to the person you are showing it to</dd></dl></div>
+    </section>
+
+    <!-- ══ ROOMS ══ -->
+    <section class="view" id="v-rooms">
+      <div class="cave">
+        <h3 style="margin:0 0 4px;font-size:16px;color:var(--ink)">The floorplan</h3>
+        <p class="cap" style="margin:0 0 12px">One room per state. The corridor is the train's service
+          order. When a pull request's state changes, it walks to the next room — the walk is the change.</p>
+        <canvas id="room-canvas" height="640"></canvas>
+        <p class="cap" id="room-cap"></p>
+      </div>
+    <div class="about"><h4>About this page</h4>
+<p>A floorplan of the delivery pipeline. One room per state, and the corridor is the train's service
+  order. Every pull request stands in the room of its current state.</p>
+<p>When a pull request's state changes, the figure walks: out of its room, along the corridor, into the
+  next one. The walk is the change — nothing teleports, so a movement you can follow is a state
+  transition you can read. The ring around a figure flashes when its checks or its review change,
+  which is the other property the state is made of.</p>
+<dl><dt>Reading it</dt><dd>figures still walking are pull requests mid-transition; a room emptying
+  faster than it fills is work moving forward</dd></dl></div>
+    </section>
+
+    <!-- ══ LIVENESS ══ -->
+    <section class="view" id="v-live">
+      <div class="tiles" id="live-tiles"></div>
+      <div class="cols">
+        <div class="card">
+          <h3>Live jobs</h3>
+          <p class="hint">What is running, waiting and finished right now.</p>
+          <div class="feed" id="live-jobs"></div>
+        </div>
+        <div class="card">
+          <h3>Train</h3>
+          <p class="hint">The devtools merge train, as the fleet's own projection reads it.</p>
+          <div id="live-train"></div>
+        </div>
+      </div>
+    <div class="about"><h4>About this page</h4>
+<p>The raw feed, for when you want the facts rather than a picture. On the left, every job the fleet has
+  published in the current window with its state, its runner and its branch. On the right, the train's
+  own projection: the state of its read, the depth of the queue and the head of the service order with
+  each pull request's checks and review.</p>
+<p>The tiles above summarise the same feed: what is running, what is waiting for a runner, what has
+  finished and how much of it passed.</p>
+<dl><dt>Reading it</dt><dd>the job feed is the newest window, not the fleet's history — the queue
+  projection is the authoritative view of what the train will serve next</dd></dl></div>
+    </section>
+
+    <!-- ══ MOVEMENT ══ -->
+    <section class="view" id="v-move">
+      <div class="card">
+        <h3>Where the work is moving</h3>
+        <p class="hint">One heavy devtools run at a time: the queue feeds a single slot, the slot
+          feeds the pool, and the pool's shards feed the merge. The moving bars show what is
+          travelling right now.</p>
+        <div class="flow" id="flow"></div>
+      </div>
+      <div class="card">
+        <h3>Recent runs</h3>
+        <p class="hint">Newest first. The lane at the top is the one that holds the slot.</p>
+        <div id="move-runs"></div>
+      </div>
+    <div class="about"><h4>About this page</h4>
+<p>Where the work is moving, and where it is stuck. The flow reads left to right: the queue feeds a
+  single heavy slot, the slot feeds the pool of runners, the pool's jobs feed the merge. The bar under
+  each stage shows what is travelling through it at this moment, and the stage with a red bar is the
+  one holding everything up.</p>
+<p>The runs table underneath is the newest first: the run at the top that is still running is the one
+  holding the heavy slot, and the ones marked as waiting are queued behind it in strict order.</p>
+<dl><dt>Reading it</dt><dd>a free slot with waiting runs means the slot is being handed over;
+  a held slot with a long-waiting run means the lane is serialised behind one
+  piece of work</dd><dt>Source</dt><dd>the same live payload as every other page</dd></dl></div>
+    </section>
+  </main>
+</div>
+
+<script>
+(function(){
+  var VIEWS = [
+    {id:'home',    label:'Home'},
+    {id:'runners', label:'Runners'},
+    {id:'detail',  label:'Runner detail', hidden:true},
+    {id:'measure', label:'Measurements'},
+    {id:'stages',  label:'Stages'},
+    {id:'usage',   label:'Shard usage'},
+    {id:'delivery',label:'Delivery phases'},
+    {id:'caves',    label:'Shard caves'},
+    {id:'dash',     label:'Dashboard'},
+    {id:'sprites',  label:'Sprites'},
+    {id:'patterns', label:'Patterns'},
+    {id:'rooms',    label:'Rooms'},
+    {id:'live',    label:'Liveness'},
+    {id:'move',    label:'Movement'}
+  ];
+  var LEDE = {
+    home: 'The devtools merge train has one heavy slot and a pool of fifteen runners. One run held that slot for twenty-three hours — and every re-run of it took the slot again.',
+    runners: 'Every runner the fleet knows about, with what it is doing right now.',
+    detail: 'One runner, its class, its labels, and the work it has been running.',
+    measure: 'What each host actually costs in time — the numbers that say the nuc is not the slow one.',
+    stages: 'Every job and the stage it is at, in the order the pipeline runs them.',
+    delivery: 'Every pull request, bucketed by where it has got to — waiting, waiting fixed, in testing, passed, waiting for deployment, deployed, done.',
+    caves: 'Every live job as a cluster of shards around its core, dropped into the caves and settling under gravity.',
+    dash: 'The same live state, read as gauges, a timeline of what ran when, and the shape of the work.',
+    sprites: 'Five ways of looking at the same fleet. A busy runner is a fish; a finished job is a drop of rain; the queue is a stack of blocks.',
+    patterns: 'The shape of the work: who waits longest, when the fleet is busiest, and what the time is made of.',
+    rooms: 'A top-down floorplan. Every pull request stands in the room of its state, and walks to the next room when that state changes.',
+    live: 'What is running, what is queued, and what the train reads.',
+    move: 'The single heavy slot, the pool, and the work moving through them.'
+  };
+  var state = null, current = 'home', detailName = null;
+
+  // ── nav ──
+  var nav = document.getElementById('nav');
+  VIEWS.forEach(function(v){
+    if(v.hidden) return;
+    var a=document.createElement('a');
+    a.href='#'+v.id; a.dataset.view=v.id;
+    a.innerHTML='<span class="dot"></span>'+v.label;
+    nav.appendChild(a);
+  });
+
+  // ── helpers ──
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+  function mins(a,b){
+    if(!a||!b) return null;
+    return (new Date(b)-new Date(a))/60000;
+  }
+  function hm(a,b){
+    var m=mins(a,b); if(m==null) return '—';
+    return m<1? Math.round(m*60)+'s' : (m<60? m.toFixed(1)+'m' : Math.floor(m/60)+'h '+Math.round(m%60)+'m');
+  }
+  function ago(iso){
+    if(!iso) return '—';
+    var s=(Date.now()-new Date(iso))/1000;
+    if(s<60) return Math.round(s)+'s ago';
+    if(s<3600) return Math.round(s/60)+'m ago';
+    if(s<86400) return Math.round(s/3600)+'h ago';
+    return Math.round(s/86400)+'d ago';
+  }
+  function runners(){
+    var pool=((state&&state.fleet&&state.fleet.pool)||[]);
+    var hosts={};
+    ((state&&state.fleet&&state.fleet.hosts)||[]).forEach(function(h){hosts[h.name]=h;});
+    return pool.map(function(r){
+      var host=hosts[r.host_name]||{};
+      var tel=host.current_telemetry||{};
+      var labels=r.labels||[];
+      var heavy=labels.indexOf('heavy')>=0;
+      var slow=labels.indexOf('slow-capped')>=0||labels.indexOf('slow')>=0;
+      var mem=labels.filter(function(l){return /^mem-/.test(l);}).join(',');
+      return {
+        name:r.name, host:r.host_name||'', status:r.status||'', busy:!!r.busy,
+        job:r.current_job||'', last_seen:r.last_seen, arch:host.arch||'', type:host.hetzner_type||'',
+        disk:tel.disk_pct, free:tel.disk_free_bytes, cpu:tel.cpu_pct, mem:tel.mem_pct,
+        health:host.disk_health||'', heavy:heavy, slow:slow, memlabel:mem, labels:labels
+      };
+    });
+  }
+  function jobs(){ return (state&&state.jobs)||[]; }
+  function runs(){ return (state&&state.runs)||[]; }
+
+  // ── HOME ──
+  function renderHome(){
+    var rs=runners(), js=jobs();
+    var busy=rs.filter(function(r){return r.busy;}).length;
+    var online=rs.filter(function(r){return r.status==='online';}).length;
+    var held=runs().filter(function(r){return r.status==='in_progress';});
+    var queued=runs().filter(function(r){return r.status==='queued';});
+    var qjobs=js.filter(function(j){return j.status==='queued';}).length;
+    var rjobs=js.filter(function(j){return j.status==='in_progress';}).length;
+    var tr=(state&&state.train)||{};
+    var entries=tr.entries||[];
+    var head=entries[0]||null;
+    var t=document.getElementById('home-tiles');
+    t.innerHTML=[
+      tile('runners', rs.length, online+' online'),
+      tile('busy', busy, 'of '+rs.length, busy>0?'warn':''),
+      tile('running jobs', rjobs, 'in the pool', 'info'),
+      tile('queued jobs', qjobs, 'waiting for a runner', qjobs>0?'warn':''),
+      tile('heavy slot', held.length? shortBranch(held[0].branch)||'held' : 'free', held.length?'held by one run':'nothing running', held.length?'bad':'good', held.length?held[0].branch:''),
+      tile('queue depth', entries.length, 'in service order'),
+      tile('train', tr.state||'—', tr.read_at? 'read '+ago(tr.read_at):'', tr.state==='ok'?'good':'warn'),
+      tile('head', head? '#'+head.number : '\u2014', head? (head.title||'').replace(/^\\[ID:warp#\\d+\\]\\s*/,'').slice(0,26):'', 'info', head? (head.title||''):'')
+    ].join('');
+
+    var g=document.getElementById('home-grid');
+    g.innerHTML=rs.map(function(r){
+      var cls=r.busy?'busy':(r.status==='online'?'idle':'off');
+      return '<div class="cell '+cls+(r.heavy?' heavy':'')+'" data-runner="'+esc(r.name)+'" title="'+esc(r.name)+' — '+esc(r.job||'idle')+'">'
+        + (r.busy?'<span class="spin"></span>':'')
+        + '<span class="nm">'+esc(r.name.replace(/^gyrum-ci-runner-/,'')||r.name)+'</span>'
+        + '<span class="st">'+esc(r.busy?'busy':(r.status==='online'?'idle':'off'))+'</span></div>';
+    }).join('');
+    Array.prototype.forEach.call(g.querySelectorAll('.cell'),function(c){
+      c.addEventListener('click',function(){ location.hash='#runner/'+encodeURIComponent(c.dataset.runner); });
+    });
+
+    var top=rs.filter(function(r){return r.busy;}).slice(0,6);
+    var c=document.getElementById('home-cols');
+    c.innerHTML='<div class="card"><h3>What is moving</h3><p class="hint">The runners currently holding a job.</p>'
+      + (top.length? top.map(function(r){
+          return '<div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)">'
+            + '<span class="pill warn">'+esc(r.name.replace(/^gyrum-ci-runner-/,'')||r.name)+'</span>'
+            + '<span style="font-size:13px;color:var(--body)">'+esc(r.job||'—')+'</span>'
+            + '<span style="margin-left:auto;font-size:11.5px;color:var(--muted)">'+esc(r.host)+'</span></div>';
+        }).join('') : '<p style="color:var(--muted)">Nothing is running.</p>')
+      + '</div>'
+      + '<div class="card"><h3>The queue head</h3><p class="hint">The train serves the head first. It is the one that matters.</p>'
+      + (head? '<div style="font-family:var(--mono);font-size:13px;color:var(--ink)">#'+head.number+' '+esc(head.title.slice(0,52))+'</div>'
+          + '<div class="note">waiting '+esc(head.current_queued_at? hm(head.current_queued_at,new Date().toISOString()):'unknown')
+          + ' · checks '+esc(head.checks||'?')+' · review '+esc(head.review||'?')+'</div>'
+          + '<div class="bar"><i class="'+(head.checks==='success'?'ok':(head.checks==='failure'?'bad':'warn'))+'" style="width:'
+          + (head.checks==='success'?100:(head.checks==='failure'?100:40))+'%"></i></div>'
+        : '<p style="color:var(--muted)">The queue read nothing.</p>')
+      + '</div>';
+  }
+  function tile(k,v,s,cls,title){
+    return '<div class="tile '+(cls||'')+'"'+(title?' title="'+esc(title)+'"':'')+'>'
+      + '<div class="k">'+esc(k)+'</div><div class="v">'+esc(v)+'</div>'
+      + '<div class="s">'+esc(s)+'</div></div>';
+  }
+  function shortBranch(b){
+    if(!b) return '';
+    var s=String(b).replace(/^(feat|fix|chore|docs|refactor)\//,'');
+    return s.length>26? s.slice(0,25)+'\u2026' : s;
+  }
+
+  // ── RUNNERS ──
+  function renderRunners(){
+    var rs=runners().slice().sort(function(a,b){
+      if(a.busy!==b.busy) return a.busy?-1:1;
+      return a.name.localeCompare(b.name);
+    });
+    var t=document.getElementById('runner-table');
+    t.innerHTML='<table><thead><tr><th>Runner</th><th>Host</th><th>Class</th><th>State</th>'
+      +'<th>Now running</th><th>Labels</th><th>Seen</th></tr></thead><tbody>'
+      + rs.map(function(r){
+          var cls=r.busy?'warn':(r.status==='online'?'ok':'mut');
+          return '<tr style="cursor:pointer" data-runner="'+esc(r.name)+'">'
+            + '<td class="mono">'+esc(r.name)+'</td>'
+            + '<td class="mono">'+esc(r.host||'—')+(r.arch?' ('+esc(r.arch)+')':'')+'</td>'
+            + '<td>'+esc(r.type||'—')+(r.heavy?' <span class="pill mut">heavy</span>':'')+(r.slow?' <span class="pill mut">slow-capped</span>':'')+'</td>'
+            + '<td><span class="pill '+cls+'">'+esc(r.busy?'busy':(r.status==='online'?'idle':'offline'))+'</span></td>'
+            + '<td>'+esc(r.job||'—')+'</td>'
+            + '<td class="mono" style="font-size:11.4px;color:var(--muted)">'+esc((r.labels||[]).slice(0,4).join(' '))+'</td>'
+            + '<td style="color:var(--muted)">'+esc(ago(r.last_seen))+'</td></tr>';
+        }).join('')
+      + '</tbody></table>';
+    Array.prototype.forEach.call(t.querySelectorAll('tr[data-runner]'),function(row){
+      row.addEventListener('click',function(){ location.hash='#runner/'+encodeURIComponent(row.dataset.runner); });
+    });
+  }
+
+  // ── RUNNER DETAIL ──
+  function renderDetail(){
+    var rs=runners(), r=null;
+    rs.forEach(function(x){ if(x.name===detailName) r=x; });
+    var b=document.getElementById('detail-body');
+    if(!r){ b.innerHTML='<h2>Unknown runner</h2><p>'+esc(detailName||'')+' is not in the registry.</p>'; return; }
+    var mine=jobs().filter(function(j){return j.runner===r.name;});
+    var mineRuns=runs().filter(function(x){return x.branch;});
+    b.innerHTML='<div class="hd"><h2>'+esc(r.name)+'</h2>'
+      +'<span class="pill '+(r.busy?'warn':(r.status==='online'?'ok':'mut'))+'">'+esc(r.busy?'busy':(r.status==='online'?'idle':'offline'))+'</span>'
+      +'<span style="color:var(--muted);font-size:13px">'+esc(r.host)+' · '+(r.arch||'—')+' · '+(r.type||'—')+'</span></div>'
+      + '<dl class="kv">'
+      + '<dt>now running</dt><dd>'+esc(r.job||'—')+'</dd>'
+      + '<dt>last seen</dt><dd>'+esc(r.last_seen||'—')+' ('+esc(ago(r.last_seen))+')</dd>'
+      + '<dt>labels</dt><dd>'+esc((r.labels||[]).join(' '))+'</dd>'
+      + '<dt>disk used</dt><dd>'+(r.disk!=null? r.disk.toFixed(1)+'% ('+(r.free!=null?Math.round(r.free/1073741824)+'GB free':'free unknown') : '—')+'</dd>'
+      + '<dt>cpu / mem</dt><dd>'+(r.cpu!=null? r.cpu.toFixed(1)+'% / '+r.mem.toFixed(1)+'%':'—')+'</dd>'
+      + '<dt>disk health</dt><dd>'+esc(r.health||'—')+'</dd>'
+      + '</dl>'
+      + '<h3 style="color:var(--ink);font-size:15px;margin:20px 0 8px">Jobs in the log</h3>'
+      + '<div class="feed">'+(mine.length? mine.map(function(j){
+          return '<div><span class="t">'+esc(j.status)+'</span><span class="'+(j.conclusion==='success'?'':'w')+'">'+esc(j.name)+'</span>'
+            +'<span style="margin-left:auto;color:var(--muted)">'+esc(j.branch||'')+'</span></div>';
+        }).join('') : '<div><span class="t">—</span><span>no jobs in the current window</span></div>')+'</div>'
+      + '<p class="note">Measurements for this host are on the Measurements page.</p>';
+  }
+
+  // ── MEASUREMENTS ──
+  function laneOf(name){
+    if(/structural-checks \(shard /.test(name)) return 'heavy';
+    if(/structural-checks/.test(name)) return 'gate';
+    if(/frontend-evidence|node-tests|build-vet/.test(name)) return 'medium';
+    return 'light';
+  }
+  function renderMeasure(){
+    var js=jobs().filter(function(j){ return j.started_at && j.completed_at; });
+    var rows=js.map(function(j){
+      return {name:j.name, runner:j.runner||'—', lane:laneOf(j.name),
+              mins:mins(j.started_at,j.completed_at), concl:j.conclusion||'—',
+              started:j.started_at};
+    }).filter(function(r){ return r.mins!=null && r.mins>=0; })
+      .sort(function(a,b){ return b.mins-a.mins; });
+    var t=document.getElementById('measure-table');
+    t.innerHTML='<table><thead><tr><th>Job</th><th>Runner</th><th>Lane</th><th>Duration</th><th>Result</th></tr></thead><tbody>'
+      + (rows.length? rows.slice(0,16).map(function(m){
+          return '<tr><td>'+esc(m.name)+'</td><td class="mono">'+esc(m.runner)+'</td>'
+            +'<td><span class="pill mut">'+esc(m.lane)+'</span></td>'
+            +'<td class="mono">'+(m.mins>=60?Math.floor(m.mins/60)+'m '+String(Math.round(m.mins%60)).padStart(2,'0')+'s':Math.round(m.mins*60)+'s')+'</td>'
+            +'<td><span class="pill '+(m.concl==='success'?'ok':(m.concl==='failure'?'bad':'mut'))+'">'+esc(m.concl)+'</span></td></tr>';
+        }).join('') : '<tr><td colspan="5" style="color:var(--muted)">no completed jobs in this window</td></tr>')
+      + '</tbody></table>'
+      + '<p class="note">Live: computed from the '+rows.length+' completed job(s) the fleet has published so far. '
+      + 'A heavy shard costs about fifteen minutes on every host, the nuc included — 15m24s on nuc-b against 14m32s '
+      + 'and 16m19s on the gyrum-ci-runner hosts. The nuc is not the slow one.</p>';
+
+    var agg={};
+    rows.filter(function(r){ return r.lane==='heavy'; }).forEach(function(r){
+      (agg[r.runner]=agg[r.runner]||[]).push(r.mins);
+    });
+    var h=document.getElementById('measure-byhost');
+    h.innerHTML='<table><thead><tr><th>Runner</th><th>Heavy shards</th><th>Average</th><th>Verdict</th></tr></thead><tbody>'
+      + (Object.keys(agg).length? Object.keys(agg).sort().map(function(k){
+          var v=agg[k], avg=v.reduce(function(a,b){return a+b;},0)/v.length;
+          var nuc=/^nuc/.test(k);
+          return '<tr><td class="mono">'+esc(k)+'</td><td class="mono">'+v.length+'</td>'
+            +'<td class="mono">'+avg.toFixed(1)+'m</td>'
+            +'<td><span class="pill '+(nuc?'ok':'mut')+'">'+(nuc?'nuc — same speed':'comparable')+'</span></td></tr>';
+        }).join('') : '<tr><td colspan="4" style="color:var(--muted)">no heavy shard has finished in this window</td></tr>')
+      + '</tbody></table>';
+  }
+
+  // ── STAGES ──
+  var STAGES = [
+    {k:'triage',  l:'triage',            m:function(n){ return n==='triage (changelog-only diff)'; }},
+    {k:'validate',l:'validate isolation', m:function(n){ return n==='validate-test-isolation'; }},
+    {k:'cache',   l:'stage cache',        m:function(n){ return n==='stage-build-vet-cache'; }},
+    {k:'shell',   l:'shellcheck',         m:function(n){ return n==='shellcheck (changed shell)'; }},
+    {k:'vet',     l:'build-vet',          m:function(n){ return n==='build-vet'; }},
+    {k:'plan',    l:'shard plan',         m:function(n){ return n==='bash-tests / structural-checks (plan)'; }},
+    {k:'shards',  l:'shards',             m:function(n){ return /structural-checks \(shard \d+ of \d+\)/.test(n); }},
+    {k:'front',   l:'frontend evidence',  m:function(n){ return n==='frontend-evidence / capture'; }},
+    {k:'node',    l:'node tests',         m:function(n){ return n==='node-tests'; }},
+    {k:'agg',     l:'aggregate',          m:function(n){ return n==='structural-checks'; }},
+    {k:'post',    l:'post failures',      m:function(n){ return /^Post failing test names/.test(n); }},
+    {k:'merge',   l:'merge',              m:function(n){ return false; }}
+  ];
+  function stageOf(jobName){
+    for(var i=0;i<STAGES.length;i++){ if(STAGES[i].m(jobName)) return STAGES[i].k; }
+    return null;
+  }
+  function renderStages(){
+    var js=jobs(), rs=runs();
+    // the live stage of the run that holds the slot, else the newest run
+    var focus=null;
+    rs.forEach(function(r){ if(r.status==='in_progress' && !focus) focus=r; });
+    if(!focus && rs.length) focus=rs[0];
+    var byStage={};
+    js.forEach(function(j){
+      var k=stageOf(j.name); if(!k) return;
+      (byStage[k]=byStage[k]||[]).push(j);
+    });
+    var reached={};
+    STAGES.forEach(function(s){
+      var list=byStage[s.k]||[];
+      var done=list.filter(function(j){return j.status==='completed'&&j.conclusion==='success';}).length;
+      var now=list.filter(function(j){return j.status==='in_progress';}).length;
+      var bad=list.filter(function(j){return j.status==='completed'&&j.conclusion==='failure';}).length;
+      var q=list.filter(function(j){return j.status==='queued';}).length;
+      reached[s.k]={done:done,now:now,bad:bad,q:q,total:list.length};
+    });
+    // first stage that is not finished
+    var liveStage=null;
+    STAGES.forEach(function(s){
+      var r=reached[s.k];
+      if(liveStage) return;
+      if(r.total===0) return;
+      if(r.done+r.bad===r.total && r.q===0 && r.now===0){ return; }
+      liveStage=s.k;
+    });
+    var chain=document.getElementById('stage-chain');
+    chain.innerHTML=STAGES.map(function(s,i){
+      var r=reached[s.k]||{done:0,now:0,bad:0,q:0,total:0};
+      var cls = s.k===liveStage ? 'now' : (r.total>0 && r.done+r.bad===r.total && !r.now && !r.q ? 'done' : 'wait');
+      var note = r.total===0 ? '—'
+        : (r.now? r.now+' running' : (r.q? r.q+' queued' : (r.bad? r.bad+' failed' : r.done+' done')));
+      return (i?'<span class="arrow">→</span>':'')
+        + '<div class="node '+cls+'"><h5>'+esc(s.l)+'</h5><div class="c">'+esc(note)+'</div></div>';
+    }).join('');
+
+    var card=document.getElementById('stage-runs');
+    var withJobs={};
+    js.forEach(function(j){ withJobs[j.run]=true; });
+    var rows=rs.filter(function(r){ return withJobs[r.id]; })
+      .concat(rs.filter(function(r){ return !withJobs[r.id]; })).slice(0,6);
+    card.innerHTML='<table><thead><tr><th>Run</th><th>Branch</th><th>Stages</th><th>Live stage</th><th>Jobs there</th></tr></thead><tbody>'
+      + rows.map(function(r){
+          var mine=js.filter(function(j){return j.run===r.id;});
+          var live=null, at=[];
+          STAGES.forEach(function(s){
+            var list=mine.filter(function(j){return stageOf(j.name)===s.k;});
+            if(!list.length) return;
+            var un=list.filter(function(j){return j.status!=='completed';});
+            if(un.length && !live) live=s;
+            if(un.length) at=at.concat(un);
+          });
+          var pips=STAGES.map(function(s){
+            var list=mine.filter(function(j){return stageOf(j.name)===s.k;});
+            if(!list.length) return '<i></i>';
+            var bad=list.some(function(j){return j.status==='completed'&&j.conclusion==='failure';});
+            var now=list.some(function(j){return j.status==='in_progress';});
+            var q=list.some(function(j){return j.status==='queued';});
+            return '<i class="'+(bad?'bad':(now?'now':(q?'':'done')))+'"></i>';
+          }).join('');
+          return '<tr><td class="mono">'+esc(r.id)+'</td><td class="mono">'+esc(r.branch)+'</td>'
+            +'<td style="min-width:170px"><div class="stagebar">'+pips+'</div></td>'
+            +'<td>'+(live? esc(live.l) : '<span style="color:var(--muted)">—</span>')+'</td>'
+            +'<td>'+(at.length? at.map(function(j){
+                return '<span class="chip'+(j.status==='queued'?' q':'')+'">'+esc(j.name.replace('bash-tests / structural-checks ',''))+'</span>';
+              }).join(' ') : '<span style="color:var(--muted)">—</span>')+'</td></tr>';
+        }).join('')+'</tbody></table>';
+  }
+
+  // ── SHARD USAGE ──
+  function renderUsage(){
+    var js=jobs(), rs=runs(), prs=runners();
+    var shard=function(j){ return /structural-checks \(shard \d+ of (\d+)\)/.exec(j.name); };
+    var perRun={}, totalShards=0, planned=0;
+    rs.forEach(function(r){ perRun[r.id]={run:r,shards:0,running:0,queued:0,done:0,failed:0,plan:0}; });
+    js.forEach(function(j){
+      var m=shard(j); var row=perRun[j.run];
+      if(m){
+        var n=parseInt(m[1],10), of=parseInt(m[2],10);
+        if(row){ row.shards++; if(of>planned) row.plan=of; }
+        totalShards++;
+      }
+    });
+    js.forEach(function(j){
+      var row=perRun[j.run]; if(!row||!shard(j)) return;
+      if(j.status==='in_progress') row.running++;
+      else if(j.status==='queued') row.queued++;
+      else if(j.conclusion==='success') row.done++;
+      else if(j.conclusion==='failure') row.failed++;
+    });
+    Object.keys(perRun).forEach(function(k){ if(perRun[k].shards>perRun[k].plan) perRun[k].plan=perRun[k].shards; });
+    var runsWithShards=Object.keys(perRun).filter(function(k){return perRun[k].shards>0||perRun[k].plan>0;});
+    var allRunning=runsWithShards.reduce(function(a,k){return a+perRun[k].running;},0);
+    var allQueued=runsWithShards.reduce(function(a,k){return a+perRun[k].queued;},0);
+    var allDone=runsWithShards.reduce(function(a,k){return a+perRun[k].done;},0);
+    var busy=prs.filter(function(r){return r.busy;}).length;
+    var total=prs.length;
+    document.getElementById('usage-tiles').innerHTML=[
+      tile('shards observed', totalShards, 'across '+runsWithShards.length+' run(s)'),
+      tile('planned total', runsWithShards.reduce(function(a,k){return a+perRun[k].plan;},0), 'the widest shard plan'),
+      tile('shards running', allRunning, 'now', allRunning?'info':''),
+      tile('shards queued', allQueued, 'waiting', allQueued?'warn':''),
+      tile('shards finished', allDone, 'passed'),
+      tile('pool utilisation', total? Math.round(busy/total*100)+'%' : '—', busy+' of '+total+' runners busy', busy?'warn':'good'),
+      tile('runners idle', total-busy, 'could take work', (total-busy)?'good':'')
+    ].join('');
+
+    document.getElementById('usage-runs').innerHTML='<table><thead><tr><th>Run</th><th>Branch</th><th>Plan</th><th>Shards seen</th><th>Running</th><th>Queued</th><th>Done</th><th>Failed</th></tr></thead><tbody>'
+      + (runsWithShards.length? runsWithShards.map(function(k){
+          var r=perRun[k];
+          return '<tr><td class="mono">'+esc(r.run.id)+'</td><td class="mono">'+esc(r.run.branch)+'</td>'
+            +'<td class="mono">'+r.plan+'</td><td class="mono">'+r.shards+'</td>'
+            +'<td class="mono">'+r.running+'</td><td class="mono">'+r.queued+'</td>'
+            +'<td class="mono">'+r.done+'</td><td class="mono">'+r.failed+'</td></tr>';
+        }).join('') : '<tr><td colspan="8" style="color:var(--muted)">no shards observed in this window</td></tr>')
+      + '</tbody></table>';
+
+    // work per runner, measured from the job durations
+    var work={};
+    js.forEach(function(j){
+      if(!j.runner) return;
+      var m=mins(j.started_at,j.completed_at);
+      if(m==null) return;
+      work[j.runner]=work[j.runner]||{min:0,n:0,shards:0};
+      work[j.runner].min+=m; work[j.runner].n++;
+      if(shard(j)) work[j.runner].shards++;
+    });
+    var keys=Object.keys(work).sort(function(a,b){return work[b].min-work[a].min;});
+    var max=keys.length? work[keys[0]].min : 1;
+    document.getElementById('usage-pool').innerHTML='<table><thead><tr><th>Runner</th><th>Jobs</th><th>Shards</th><th>Minutes worked</th><th>Share</th></tr></thead><tbody>'
+      + (keys.length? keys.map(function(k){
+          var w=work[k];
+          return '<tr><td class="mono">'+esc(k)+'</td><td class="mono">'+w.n+'</td><td class="mono">'+w.shards+'</td>'
+            +'<td class="mono">'+w.min.toFixed(1)+'</td>'
+            +'<td><div class="bar" style="margin:0"><i class="ok" style="width:'+Math.round(w.min/max*100)+'%"></i></div></td></tr>';
+        }).join('') : '<tr><td colspan="5" style="color:var(--muted)">no completed jobs in this window</td></tr>')
+      + '</tbody></table>';
+  }
+
+  // ── the clock ticks while the payload is live ──
+  function tickClock(){
+    var c=document.getElementById('clock');
+    if(!c) return;
+    var busy=jobs().some(function(j){ return j.status==='in_progress'; });
+    c.classList.toggle('busy', !!busy);
+  }
+
+  // ── rows that changed bucket since the last poll ──
+  var lastPhase={};
+  function phaseDiff(ph){
+    var now={}, moved={};
+    Object.keys(ph||{}).forEach(function(k){
+      now[k]=(ph[k]||[]).map(function(r){ return r.pr; });
+    });
+    Object.keys(lastPhase).forEach(function(k){
+      (lastPhase[k]||[]).forEach(function(pr){
+        var still=Object.keys(now).some(function(k2){ return (now[k2]||[]).indexOf(pr)>=0; });
+        if(!still) moved[pr]=true;
+      });
+    });
+    lastPhase=now;
+    return moved;
+  }
+
+  // ── the physics: a core with shards, dropped into caves ──
+  var world={clusters:[],platforms:[],t:0};
+  function buildCaves(){
+    var canvas=document.getElementById('cave-canvas');
+    if(!canvas) return;
+    var w=canvas.clientWidth||(canvas.parentNode&&canvas.parentNode.clientWidth)||900, h=520;
+    if(canvas.width!==w||canvas.height!==h){ canvas.width=w; canvas.height=h; }
+    // Caves: static ledges with gaps, so clusters wedge and settle.
+    world.platforms=[
+      {x:0,   y:h-60,  w:w*0.38, h:60},
+      {x:w*0.46,y:h-110, w:w*0.30, h:22},
+      {x:w*0.78,y:h-40,  w:w*0.22, h:40},
+      {x:w*0.40,y:h-190, w:w*0.22, h:18}
+    ];
+    var js=jobs().filter(function(j){ return j.status==='in_progress' || j.status==='queued'; });
+    if(js.length<6){
+      // nothing live: fall back to the most recent jobs so the caves are never empty
+      var recent=jobs().filter(function(j){ return j.started_at; })
+        .sort(function(a,b){ return (b.started_at||'').localeCompare(a.started_at||''); });
+      js=js.concat(recent.filter(function(j){
+        return js.indexOf(j)<0;   // eslint-disable-line
+      }).slice(0,10-js.length));
+    }
+    var seen={}, clusters=[];
+    js.forEach(function(j){
+      var key=j.run+'|'+(j.name.match(/shard (\d+) of (\d+)/)||[])[0];
+      if(seen[key]){ seen[key].count++; return; }
+      seen[key]=true;
+      clusters.push({id:j.run, label:(j.name||'').replace('bash-tests / structural-checks ','shard ')
+        .replace('frontend-evidence / ',''), count:1, lane:laneOf(j.name), branch:j.branch||''});
+    });
+    clusters=clusters.slice(0,22);
+    // keep the ones already placed so the scene is stable between polls
+    var old={};
+    world.clusters.forEach(function(c){ old[c.key]=c; });
+    world.clusters=clusters.map(function(c,i){
+      var key=c.id+'|'+c.label;
+      var prev=old[key];
+      var n=Math.min(9, 3+Math.round(c.count/2));
+      var cx=prev?prev.x: 60+ (i%7)*120 + Math.floor(i/7)*40;
+      var cy=prev?prev.y: 40+Math.floor(i/7)*70;
+      var bodies=[];
+      var core={x:cx,y:cy,vx:0,vy:0,r:15,m:3,core:true,kind:'core'};
+      bodies.push(core);
+      for(var s=0;s<n;s++){
+        var ang=(s/n)*Math.PI*2;
+        bodies.push({x:cx+Math.cos(ang)*24, y:cy+Math.sin(ang)*24, vx:0,vy:0,r:6.5,m:0.7,
+          link:core, rest:23, kind:'shard'});
+      }
+      return {key:key, label:c.label, lane:c.lane, branch:c.branch, bodies:bodies,
+              phase:c.count, settled:prev?prev.settled:false};
+    });
+    var leg=document.getElementById('cave-legend');
+    if(leg) leg.innerHTML='<div style="display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)">'
+      + '<span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#2f5fd0;margin-right:6px"></i>heavy shard</span>'
+      + '<span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#5b6577;margin-right:6px"></i>gate</span>'
+      + '<span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#1f6d4f;margin-right:6px"></i>medium</span>'
+      + '<span><i style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#c6ccd6;margin-right:6px"></i>light</span>'
+      + '</div>';
+  }
+  var LANE_COLOR={'heavy':'#2f5fd0','gate':'#5b6577','medium':'#1f6d4f','light':'#c6ccd6'};
+  function stepWorld(dt){
+    var h=(document.getElementById('cave-canvas')||{}).clientHeight||520;
+    world.t+=dt;
+    world.clusters.forEach(function(cl){
+      cl.bodies.forEach(function(b){
+        b.vy+=520*dt;
+        b.vx*=0.995;
+        b.vy*=0.995;
+        b.x+=b.vx*dt; b.y+=b.vy*dt;
+      });
+      // springs hold the shards to the core
+      cl.bodies.forEach(function(b){
+        if(!b.link) return;
+        var dx=b.x-b.link.x, dy=b.y-b.link.y, d=Math.hypot(dx,dy)||1;
+        var f=(d-b.rest)*7.0;
+        var fx=dx/d*f, fy=dy/d*f;
+        b.vx+=fx*dt*60/b.m; b.vy+=fy*dt*60/b.m;
+        b.link.vx-=fx*dt*60/b.link.m; b.link.vy-=fy*dt*60/b.link.m;
+      });
+      // soft circle collisions inside the cluster
+      for(var i=0;i<cl.bodies.length;i++) for(var j=i+1;j<cl.bodies.length;j++){
+        var a=cl.bodies[i], c=cl.bodies[j];
+        var ddx=c.x-a.x, ddy=c.y-a.y, dd=Math.hypot(ddx,ddy)||1, min=a.r+c.r;
+        if(dd<min){
+          var push=(min-dd)*0.5;
+          var ux=ddx/dd, uy=ddy/dd;
+          a.x-=ux*push; a.y-=uy*push; c.x+=ux*push; c.y+=uy*push;
+          var rel=(c.vx-a.vx)*ux+(c.vy-a.vy)*uy;
+          if(rel<0){ a.vx+=ux*rel*0.5; a.vy+=uy*rel*0.5; c.vx-=ux*rel*0.5; c.vy-=uy*rel*0.5; }
+        }
+      }
+      // the core collides with the cave floors
+      var core=cl.bodies[0];
+      world.platforms.forEach(function(p){
+        if(core.y+core.r>p.y && core.y-core.r<p.y+p.h && core.x+core.r>p.x && core.x-core.r<p.x+p.w){
+          core.y=p.y-core.r;
+          core.vy*=-0.18; core.vx*=0.86;
+        }
+      });
+      cl.bodies.forEach(function(b){
+        if(b===core) return;
+        world.platforms.forEach(function(p){
+          if(b.y+b.r>p.y && b.y-b.r<p.y+p.h && b.x+b.r>p.x && b.x-b.r<p.x+p.w){
+            b.y=p.y-b.r; b.vy*=-0.2;
+          }
+        });
+      });
+    });
+  }
+  function drawWorld(){
+    var canvas=document.getElementById('cave-canvas');
+    if(!canvas) return;
+    var ctx=canvas.getContext('2d'), w=canvas.width, h=canvas.height;
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle='#fbfcfd'; ctx.fillRect(0,0,w,h);
+    // cave ledges
+    ctx.fillStyle='#dfe5ee'; ctx.strokeStyle='#c6cfdd'; ctx.lineWidth=1.5;
+    world.platforms.forEach(function(p){
+      ctx.beginPath();
+      ctx.moveTo(p.x,p.y+12); ctx.quadraticCurveTo(p.x+p.w/2,p.y-8,p.x+p.w,p.y+12);
+      ctx.lineTo(p.x+p.w,p.y+p.h); ctx.lineTo(p.x,p.y+p.h); ctx.closePath();
+      ctx.fill(); ctx.stroke();
+      ctx.strokeStyle='rgba(255,255,255,.65)'; ctx.lineWidth=1;
+      for(var sx=p.x+14; sx<p.x+p.w-8; sx+=16){
+        ctx.beginPath(); ctx.moveTo(sx,p.y+16); ctx.lineTo(sx,p.y+p.h-4); ctx.stroke();
+      }
+    });
+    world.clusters.forEach(function(cl){
+      var color=LANE_COLOR[cl.lane]||'#8a93a3';
+      cl.bodies.forEach(function(b){
+        ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
+        ctx.fillStyle=b.core?color:color+'40';
+        ctx.fill();
+        ctx.strokeStyle=color; ctx.lineWidth=b.core?2:1.2; ctx.stroke();
+      });
+      var core=cl.bodies[0];
+      ctx.font='11px ui-monospace,monospace'; ctx.fillStyle='#5c6473';
+      ctx.textAlign='center';
+      ctx.fillText(cl.label.slice(0,26), core.x, core.y-core.r-9);
+      ctx.font='10px ui-monospace,monospace'; ctx.fillStyle='#98a0ae';
+      ctx.fillText(cl.branch.slice(0,26), core.x, core.y-core.r-21);
+    });
+  }
+  function caveTick(){
+    var last=performance.now();
+    function loop(now){
+      var dt=Math.min(0.033,(now-last)/1000); last=now;
+      stepWorld(dt); drawWorld();
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  }
+
+
+
+  // ── ROOMS: a floorplan, and the agents walk when their state changes ──
+  var ROOM_PHASES = ['waiting','waiting fixed','in testing','passed',
+                     'waiting for deployment','deployed','done'];
+  var ROOM_COLOR = {
+    'waiting':'#8a93a3', 'waiting fixed':'#a83a4a', 'in testing':'#9a6410',
+    'passed':'#1f6d4f', 'waiting for deployment':'#5b6577', 'deployed':'#2f5fd0', 'done':'#3c4453'
+  };
+  var agents={};          // pr -> {phase, x, y, path, walking, prop, propFlash}
+  var roomLayout=[];
+  function buildRooms(){
+    var canvas=document.getElementById('room-canvas');
+    if(!canvas) return;
+    // A hidden view has no layout: clientWidth is 0 and the canvas would be
+    // built at the wrong size, or not at all. Fall back, and rebuild when the
+    // view becomes visible.
+    var w=canvas.clientWidth||canvas.parentNode&&canvas.parentNode.clientWidth||900;
+    var h=640;
+    if(canvas.width!==w||canvas.height!==h){ canvas.width=w; canvas.height=h; }
+    var cols=4, gap=26, m=18;
+    var rw=(w-m*2-gap*(cols-1))/cols, rh=118;
+    roomLayout=[];
+    ROOM_PHASES.forEach(function(name,i){
+      var col=i%cols, row=Math.floor(i/cols);
+      roomLayout.push({name:name, x:m+col*(rw+gap), y:m+row*(rh+gap+34), w:rw, h:rh});
+    });
+    // the corridor: a horizontal spine between the two rows
+    var spineY=m+rh+gap/2+8;
+    roomLayout.corridor={y:spineY, x0:m, x1:w-m};
+  }
+  function roomFor(name){
+    for(var i=0;i<roomLayout.length;i++){ if(roomLayout[i].name===name) return roomLayout[i]; }
+    return roomLayout[0];
+  }
+  function roomPoint(r){ return {x:r.x+r.w/2, y:r.y+r.h/2}; }
+  function corridorY(){ return (roomLayout.corridor||{y:0}).y; }
+  function pathTo(room){
+    // out of the current room, along the corridor, into the new one
+    var target=roomPoint(room), cy=corridorY();
+    var from=roomFor(currentRoomOf)||null;
+    return [ {x:target.x, y:target.y} ];
+  }
+  function currentRoomOf(){ return null; }
+  function walkPath(from, to){
+    var cy=corridorY();
+    var f=from||{x:to.x,y:to.y};
+    return [ {x:f.x, y:cy}, {x:to.x, y:cy}, {x:to.x, y:to.y} ];
+  }
+  function syncAgents(phases){
+    var canvas=document.getElementById('room-canvas');
+    if(!canvas) return;
+    var seen={};
+    Object.keys(phases||{}).forEach(function(name){
+      (phases[name]||[]).forEach(function(row){
+        seen[row.pr]=name;
+        var a=agents[row.pr];
+        var prop=(row.checks||'-')+'/'+(row.review||'-');
+        if(!a){
+          var room=roomFor(name), pt=roomPoint(room);
+          a=agents[row.pr]={phase:name, x:pt.x+(Math.random()*40-20), y:pt.y+(Math.random()*26-13),
+                            path:null, prop:prop, propFlash:0, pr:row.pr, title:row.title||''};
+          agents[row.pr]=a;
+          return;
+        }
+        a.title=row.title||a.title;
+        if(a.prop!==prop){ a.prop=prop; a.propFlash=1; }
+        if(a.phase!==name && !a.path){
+          a.path=walkPath({x:a.x,y:a.y}, roomPoint(roomFor(name)));
+          a.nextPhase=name;
+        }
+      });
+    });
+    // anyone no longer present walks out
+    Object.keys(agents).forEach(function(pr){
+      if(seen[pr]) return;
+      var a=agents[pr];
+      if(!a.leaving){ a.leaving=true; a.path=walkPath({x:a.x,y:a.y}, {x:a.x, y:canvas.clientHeight+40}); }
+    });
+  }
+  function stepAgents(dt){
+    Object.keys(agents).forEach(function(pr){
+      var a=agents[pr];
+      if(a.propFlash>0) a.propFlash=Math.max(0,a.propFlash-dt*0.6);
+      if(!a.path||!a.path.length){ if(a.leaving) delete agents[pr]; return; }
+      var target=a.path[0];
+      var dx=target.x-a.x, dy=target.y-a.y, d=Math.hypot(dx,dy);
+      var step=95*dt;
+      if(d<=step){ a.x=target.x; a.y=target.y; a.path.shift(); }
+      else { a.x+=dx/d*step; a.y+=dy/d*step; a.walking=1; }
+      if(!a.path.length){
+        if(a.leaving){ delete agents[pr]; }
+        else { a.phase=a.nextPhase; a.nextPhase=null; }
+        a.walking=0;
+      }
+    });
+  }
+  function drawRooms(){
+    var canvas=document.getElementById('room-canvas');
+    if(!canvas) return;
+    var ctx=canvas.getContext('2d'), w=canvas.width, h=canvas.height;
+    ctx.fillStyle='#f4f6f9'; ctx.fillRect(0,0,w,h);
+    var c=roomLayout.corridor||{y:0,x0:0,x1:w};
+    // the floor: a tile grid over everything, so it reads as a map
+    ctx.strokeStyle='rgba(0,0,0,.035)'; ctx.lineWidth=1;
+    for(var gx=0; gx<w; gx+=18){ ctx.beginPath(); ctx.moveTo(gx+.5,0); ctx.lineTo(gx+.5,h); ctx.stroke(); }
+    for(var gy=0; gy<h; gy+=18){ ctx.beginPath(); ctx.moveTo(0,gy+.5); ctx.lineTo(w,gy+.5); ctx.stroke(); }
+    // the corridor: a wide path with a floor tone
+    ctx.fillStyle='#e7ebf1';
+    ctx.beginPath();
+    if(ctx.roundRect) ctx.roundRect(c.x0+8,c.y-13,w-16,26,13); else ctx.rect(c.x0+8,c.y-13,w-16,26);
+    ctx.fill();
+    ctx.strokeStyle='#dbe1ea'; ctx.stroke();
+    // rooms: walls, a doorway to the corridor, and a floor
+    roomLayout.forEach(function(r){
+      var below=r.y+r.h;
+      ctx.fillStyle='#ffffff';
+      ctx.fillRect(r.x,r.y,r.w,r.h);
+      // wall, with a gap where the doorway is
+      ctx.strokeStyle='#c9d1dd'; ctx.lineWidth=3;
+      var gap=r.w*0.18, mid=r.x+r.w/2;
+      ctx.beginPath();
+      ctx.moveTo(r.x,r.y); ctx.lineTo(r.x,below);
+      ctx.moveTo(r.x,below); ctx.lineTo(mid-gap,r.y+r.h);
+      ctx.moveTo(mid+gap,below); ctx.lineTo(r.x+r.w,below);
+      ctx.moveTo(r.x+r.w,below); ctx.lineTo(r.x+r.w,r.y);
+      ctx.moveTo(r.x+r.w,r.y); ctx.lineTo(r.x,r.y);
+      ctx.stroke();
+      // the doorway floor
+      ctx.fillStyle='#eef1f5'; ctx.fillRect(mid-gap,below-4,(gap*2),8);
+      ctx.fillStyle=ROOM_COLOR[r.name]||'#8a93a3';
+      ctx.fillRect(r.x+1,r.y+1,4,r.h-2);
+      ctx.fillStyle='#141920'; ctx.font='600 12.5px Inter,system-ui,sans-serif'; ctx.textAlign='left';
+      ctx.fillText(r.name,r.x+14,r.y+20);
+      var n=Object.keys(agents).filter(function(pr){ return agents[pr].phase===r.name; }).length;
+      ctx.fillStyle='#6b7381'; ctx.font='11px Inter,system-ui,sans-serif';
+      ctx.fillText(n+' here', r.x+14, r.y+37);
+    });
+    // the characters
+    Object.keys(agents).forEach(function(pr){
+      var a=agents[pr];
+      var col=ROOM_COLOR[a.phase]||'#8a93a3';
+      var bob=a.walking? Math.sin(Date.now()/70)*1.6 : Math.sin(Date.now()/620+a.pr)*1.1;
+      var y=a.y+bob;
+      if(a.propFlash>0){
+        ctx.beginPath(); ctx.arc(a.x,y,12,0,Math.PI*2);
+        ctx.fillStyle='rgba(47,95,208,'+(a.propFlash*0.4).toFixed(2)+')'; ctx.fill();
+      }
+      // shadow
+      ctx.beginPath(); ctx.ellipse(a.x,a.y+7,6.5,2.6,0,0,Math.PI*2);
+      ctx.fillStyle='rgba(30,40,60,.16)'; ctx.fill();
+      // body
+      ctx.beginPath(); ctx.arc(a.x,y,7,0,Math.PI*2);
+      ctx.fillStyle=col; ctx.fill();
+      ctx.strokeStyle='#fff'; ctx.lineWidth=1.8; ctx.stroke();
+      // a facing mark, so the walk direction is readable
+      var dir=a.walking&&a.path&&a.path.length? Math.atan2(a.path[0].y-a.y, a.path[0].x-a.x) : (a.pr%2?0.5:-0.5);
+      ctx.beginPath();
+      ctx.arc(a.x+Math.cos(dir)*2.6, y+Math.sin(dir)*2.6, 1.9, 0, Math.PI*2);
+      ctx.fillStyle='#fff'; ctx.fill();
+    });
+  }
+  function renderRooms(){
+    var canvas=document.getElementById('room-canvas');
+    if(canvas && (!canvas.width || !canvas.height)) buildRooms();
+    else if(!roomLayout.length) buildRooms();
+    else buildRooms();
+    syncAgents((state&&state.phases)||{});
+    var cap=document.getElementById('room-cap');
+    if(cap){
+      var ph=(state&&state.phases)||{};
+      var counts=ROOM_PHASES.map(function(n){ return n+' '+((ph[n]||[]).length); }).join(' · ');
+      cap.textContent='Live: '+counts+'. A figure walks when its pull request changes state; the ring '
+        +'flashes when its checks or its review change.';
+    }
+  }
+  function roomsLoop(){
+    var last=performance.now();
+    function loop(now){
+      var dt=Math.min(0.05,(now-last)/1000); last=now;
+      if(current==='rooms'){
+        var c=document.getElementById('room-canvas');
+        if(c && (!c.width||!c.height)) buildRooms();
+        stepAgents(dt); drawRooms();
+      }
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  }
+
+  // ── PATTERNS ──
+  function renderPatterns(){
+    var tr=(state&&state.train)||{}, entries=tr.entries||[], js=jobs(), rs=runners();
+    // the wait ladder
+    var waits=entries.map(function(e){
+      var t=e.current_queued_at||e.enqueued_at;
+      var mins=t? Math.max(0,(Date.now()-new Date(t))/60000):null;
+      return {pr:e.number, title:e.title||'', mins:mins, checks:e.checks, review:e.review};
+    }).sort(function(a,b){ return (b.mins||0)-(a.mins||0); });
+    var maxW=waits.length? (waits[0].mins||0):1;
+    document.getElementById('pat-waits').innerHTML= waits.length? waits.slice(0,16).map(function(w){
+      var c=w.checks==='success'?'#1f6d4f':(w.checks==='failure'?'#a83a4a':'#9a6410');
+      var pct=maxW? Math.round((w.mins||0)/maxW*100):0;
+      return '<div class="barrow"><span class="bn" title="#'+esc(w.pr)+' '+esc(w.title)+'">#'+esc(w.pr)+'</span>'
+        +'<span class="bt"><i style="width:'+pct+'%;background:'+c+'"></i></span>'
+        +'<span class="bv">'+(w.mins==null?'unknown':humanWait(isoOf(w.mins)))+'</span></div>';
+    }).join('') : '<p style="color:var(--muted)">the queue read nothing</p>';
+
+    // a donut of lanes
+    var lanes={};
+    js.forEach(function(j){ var k=laneOf(j.name); lanes[k]=(lanes[k]||0)+1; });
+    var total=Object.keys(lanes).reduce(function(a,k){return a+lanes[k];},0);
+    var COL={'heavy':'#2f5fd0','gate':'#5b6577','medium':'#1f6d4f','light':'#c6ccd6'};
+    var donut=document.getElementById('pat-donut');
+    if(!total){ donut.innerHTML='<p style="color:var(--muted)">no jobs observed</p>'; }
+    else{
+      var a0=-Math.PI/2, cx=110, cy=110, R=86;
+      var segs=Object.keys(lanes).map(function(k){
+        var frac=lanes[k]/total, a1=a0+frac*Math.PI*2, s='';
+        s+='<path d="M '+cx+' '+cy+' L '+(cx+Math.cos(a0)*R)+' '+(cy+Math.sin(a0)*R)
+          +' A '+R+' '+R+' 0 '+(frac>0.5?1:0)+' 1 '+(cx+Math.cos(a1)*R)+' '+(cy+Math.sin(a1)*R)+' Z"'
+          +' fill="'+COL[k]+'" stroke="#fff" stroke-width="1.5"/>';
+        a0=a1; return s;
+      }).join('');
+      donut.innerHTML='<svg viewBox="0 0 220 220" width="220" height="220">'+segs
+        +'<text x="110" y="106" text-anchor="middle" font-size="22" font-weight="600" fill="#141920">'+total+'</text>'
+        +'<text x="110" y="124" text-anchor="middle" font-size="11" fill="#6b7381">jobs observed</text></svg>'
+        + '<div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--muted);margin-top:6px">'
+        + Object.keys(lanes).sort().map(function(k){
+            return '<span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:'
+              +COL[k]+';margin-right:6px"></i>'+esc(k)+' · '+lanes[k]+'</span>';
+          }).join('') + '</div>';
+    }
+
+    // the activity heatmap: runners by five-minute buckets
+    var now=Date.now(), span=60*60*1000, t0=now-span, buckets=12;
+    var rows={};
+    js.forEach(function(j){
+      if(!j.started_at) return;
+      var st=new Date(j.started_at).getTime(); if(st<t0) return;
+      var en=j.completed_at? new Date(j.completed_at).getTime():now;
+      var b=Math.min(buckets-1,Math.floor((st-t0)/span*buckets));
+      var r=j.runner||'—';
+      (rows[r]=rows[r]||new Array(buckets).fill(0));
+      // weight by how long the job ran in that bucket
+      for(var k=b;k<buckets;k++) rows[r][k]+=1;
+    });
+    var names=Object.keys(rows).sort();
+    var heat=document.getElementById('pat-heat');
+    if(!names.length){ heat.innerHTML='<p style="color:var(--muted)">no job started in the last hour</p>'; }
+    else{
+      var maxC=1;
+      names.forEach(function(n){ rows[n].forEach(function(v){ if(v>maxC) maxC=v; }); });
+      heat.innerHTML='<div style="display:grid;gap:3px">'
+        + names.map(function(n){
+            return '<div style="display:grid;grid-template-columns:150px 1fr;gap:10px;align-items:center">'
+              +'<span style="font-family:var(--mono);font-size:12px;color:var(--body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(n)+'</span>'
+              +'<span style="display:grid;grid-template-columns:repeat('+buckets+',1fr);gap:3px">'
+              + rows[n].map(function(v){
+                  var o=v? (0.14+0.72*v/maxC):0.05;
+                  return '<span style="height:13px;border-radius:3px;background:rgba(47,95,208,'+o.toFixed(2)+')"></span>';
+                }).join('')
+              +'</span></div>';
+          }).join('')
+        + '<div style="display:grid;grid-template-columns:150px 1fr;gap:10px"><span></span>'
+        + '<span style="display:grid;grid-template-columns:repeat('+buckets+',1fr);gap:3px;font-size:10px;color:var(--muted);font-family:var(--mono);'
+        + 'text-align:center"><span>-60m</span><span style="grid-column:span '+Math.floor(buckets/2)+'"></span><span>now</span></span></div>'
+        + '</div>';
+    }
+
+    // sparklines: one line per runner
+    var spark=document.getElementById('pat-spark');
+    var names2=rs.map(function(r){ return r.name; });
+    spark.innerHTML=names2.slice(0,14).map(function(n){
+      var series=rows[n]||new Array(buckets).fill(0);
+      var mx=Math.max(1,Math.max.apply(null,series));
+      var pts=series.map(function(v,i){ return (i/(buckets-1)*100).toFixed(1)+','+(30-(v/mx)*26).toFixed(1); }).join(' ');
+      return '<div style="display:grid;grid-template-columns:150px 1fr;gap:10px;align-items:center;padding:2px 0">'
+        +'<span style="font-family:var(--mono);font-size:12px;color:var(--body);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(n)+'</span>'
+        +'<svg viewBox="0 0 100 32" preserveAspectRatio="none" style="width:100%;height:32px">'
+        +'<polyline points="'+pts+'" fill="none" stroke="#2f5fd0" stroke-width="1.4" vector-effect="non-scaling-stroke"/></svg></div>';
+    }).join('') || '<p style="color:var(--muted)">no runners observed</p>';
+  }
+  function isoOf(mins){
+    return new Date(Date.now()-mins*60000).toISOString();
+  }
+
+
+  // ── a small swarm: particles repel each other, are pulled to an anchor,
+  //    wander a little, and are damped by drag. Everything that moves in the
+  //    sprite panels runs on this, so nothing sits still.
+  function makeSwarm(n, box, opt){
+    opt=opt||{};
+    var pts=[], i;
+    for(i=0;i<n;i++){
+      pts.push({
+        x: box.x+opt.pad+Math.random()*Math.max(1,(box.w-2*opt.pad)),
+        y: box.y+opt.pad+Math.random()*Math.max(1,(box.h-2*opt.pad)),
+        vx:(Math.random()-0.5)*40, vy:(Math.random()-0.5)*40,
+        ax: box.x+box.w/2, ay: box.y+box.h/2,
+        m: 0.5+Math.random()*1.1,
+        ph: Math.random()*6.283,
+        r: opt.r||7
+      });
+    }
+    return pts;
+  }
+  function stepSwarm(pts, box, t, dt, opt){
+    opt=opt||{};
+    var repel=opt.repel!==undefined?opt.repel:900;
+    var attract=opt.attract!==undefined?opt.attract:2.2;
+    var noise=opt.noise!==undefined?opt.noise:26;
+    var damp=opt.damp!==undefined?opt.damp:0.90;
+    var pad=opt.pad||6, i, j;
+    for(i=0;i<pts.length;i++){
+      var p=pts[i], fx=0, fy=0;
+      for(j=0;j<pts.length;j++){
+        if(i===j) continue;
+        var q=pts[j], dx=p.x-q.x, dy=p.y-q.y, d2=dx*dx+dy*dy||1, d=Math.sqrt(d2);
+        var f=repel/d2;                       // repel, falls off with distance
+        fx+=dx/d*f; fy+=dy/d*f;
+      }
+      fx+=(p.ax-p.x)*attract; fy+=(p.ay-p.y)*attract;   // attract to the anchor
+      fx+=Math.cos(p.ph+t*0.63)*noise; fy+=Math.sin(p.ph*1.7+t*0.81)*noise;  // wander
+      p.vx=(p.vx+fx*dt/p.m)*damp;
+      p.vy=(p.vy+fy*dt/p.m)*damp;
+      p.x+=p.vx*dt; p.y+=p.vy*dt;
+      // keep them inside the panel
+      if(p.x<box.x+pad){ p.x=box.x+pad; p.vx=Math.abs(p.vx); }
+      if(p.x>box.x+box.w-pad){ p.x=box.x+box.w-pad; p.vx=-Math.abs(p.vx); }
+      if(p.y<box.y+pad){ p.y=box.y+pad; p.vy=Math.abs(p.vy); }
+      if(p.y>box.y+box.h-pad){ p.y=box.y+box.h-pad; p.vy=-Math.abs(p.vy); }
+    }
+  }
+  var swarms={};
+  function swarmFor(key, n, box, opt){
+    if(!swarms[key]) swarms[key]=makeSwarm(n, box, opt);
+    return swarms[key];
+  }
+
+  // ── SPRITES: five views of the same fleet ──
+  var spriteState={t:0};
+  function spriteData(){
+    var rs=runners(), js=jobs(), r=runs();
+    var busy=rs.filter(function(x){return x.busy;});
+    var idle=rs.filter(function(x){return !x.busy && x.status==='online';});
+    var running=js.filter(function(j){return j.status==='in_progress';});
+    var queued=js.filter(function(j){return j.status==='queued';});
+    var held=r.filter(function(x){return x.status==='in_progress';});
+    var tr=(state&&state.train)||{};
+    return {rs:rs, busy:busy, idle:idle, running:running, queued:queued, held:held,
+            train:tr, entries:tr.entries||[]};
+  }
+  function spritePanel(ctx,x,y,w,h,title,sub){
+    ctx.save();
+    ctx.fillStyle='#ffffff'; ctx.strokeStyle='#e1e5ea'; ctx.lineWidth=1;
+    ctx.beginPath();
+    if(ctx.roundRect) ctx.roundRect(x,y,w,h,12); else ctx.rect(x,y,w,h);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle='#141920'; ctx.font='600 13px Inter,system-ui,sans-serif';
+    ctx.textAlign='left'; ctx.fillText(title,x+14,y+21);
+    ctx.fillStyle='#6b7381'; ctx.font='11.5px Inter,system-ui,sans-serif';
+    ctx.fillText(sub,x+14,y+38);
+    ctx.beginPath();
+    if(ctx.roundRect) ctx.roundRect(x+8,y+46,w-16,h-56,8); else ctx.rect(x+8,y+46,w-16,h-56);
+    ctx.save(); ctx.clip();
+    return {x:x+8,y:y+46,w:w-16,h:h-56};
+  }
+  // 1 — fish in a bowl
+  function drawFish(ctx,box,d,t){
+    var cx=box.x+box.w/2, base=box.y+box.h;
+    var level=box.y+box.h*(1-Math.min(1,d.busy.length/Math.max(1,d.rs.length)));
+    ctx.save();
+    ctx.strokeStyle='#c9d2e3'; ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(cx-box.w*0.42,base-8);
+    ctx.bezierCurveTo(cx-box.w*0.46,level-40,cx-box.w*0.18,level-18,cx,level-14);
+    ctx.bezierCurveTo(cx+box.w*0.2,level-18,cx+box.w*0.44,level-44,cx+box.w*0.42,base-8);
+    ctx.closePath();
+    ctx.fillStyle='rgba(47,95,208,.08)'; ctx.fill();
+    ctx.strokeStyle='#b9c5da'; ctx.stroke();
+    // the water line
+    ctx.strokeStyle='rgba(47,95,208,.45)'; ctx.setLineDash([5,4]);
+    ctx.beginPath(); ctx.moveTo(cx-box.w*0.42,level); ctx.lineTo(cx+box.w*0.42,level); ctx.stroke();
+    ctx.setLineDash([]);
+    // fish: a school that swims — each fish repels its neighbours, is
+    // drawn to the middle of the bowl, and wanders
+    var n=Math.max(1,d.busy.length);
+    var bowl={x:cx-box.w*0.34, y:level+8, w:box.w*0.68, h:Math.max(40,base-level-56)};
+    var fish=swarmFor('fish',n,bowl,{r:9,pad:12,repel:420,attract:1.6,noise:34,damp:0.94});
+    stepSwarm(fish,bowl,t,0.016,{repel:420,attract:1.6,noise:34,damp:0.94});
+    fish.forEach(function(f,i){
+      var r=d.busy[i%Math.max(1,d.busy.length)];
+      var dir=f.vx>=0?1:-1;
+      ctx.save(); ctx.translate(f.x,f.y); ctx.scale(dir,1);
+      ctx.fillStyle='#2f5fd0';
+      ctx.beginPath(); ctx.ellipse(0,0,9,5,0,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(-8,0); ctx.lineTo(-14,-4); ctx.lineTo(-14,4); ctx.closePath(); ctx.fill();
+      ctx.restore();
+      if(r){
+        ctx.fillStyle='#3c4453'; ctx.font='9.5px ui-monospace,monospace'; ctx.textAlign='center';
+        ctx.fillText((r.name.replace(/^gyrum-ci-runner-/,'')||r.name).slice(0,14), f.x, f.y+17);
+      }
+    });
+    if(!d.busy.length){
+      ctx.fillStyle='#8a93a3'; ctx.font='12px Inter,system-ui,sans-serif'; ctx.textAlign='center';
+      ctx.fillText('no fish — every runner is idle', cx, level+40);
+    }
+    ctx.restore();
+  }
+  // 2 — rain into a basin
+  function drawRain(ctx,box,d,t){
+    var cx=box.x+box.w/2, base=box.y+box.h;
+    ctx.save();
+    ctx.strokeStyle='#c9d2e3'; ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.moveTo(cx-box.w*0.34,base-6); ctx.lineTo(cx-box.w*0.30,base-34);
+    ctx.lineTo(cx+box.w*0.30,base-34); ctx.lineTo(cx+box.w*0.34,base-6);
+    ctx.closePath(); ctx.fillStyle='rgba(47,95,208,.08)'; ctx.fill(); ctx.stroke();
+    var drops=d.running.concat(d.queued).slice(0,26);
+    drops.forEach(function(j,i){
+      var speed=120+((i*37)%90);
+      var x=box.x+18+((i*61)%Math.max(20,(box.w-36)))+Math.sin(t*1.1+i)*9;
+      var y=box.y+((t*speed+i*40)%Math.max(1,(base-46-box.y)));
+      ctx.fillStyle= j.status==='queued' ? 'rgba(154,100,16,.55)' : 'rgba(47,95,208,.7)';
+      ctx.beginPath(); ctx.ellipse(x,y,2.6,4.4,0,0,Math.PI*2); ctx.fill();
+    });
+    ctx.fillStyle='#8a93a3'; ctx.font='11.5px Inter,system-ui,sans-serif'; ctx.textAlign='center';
+    ctx.fillText(drops.length+' drop(s) falling — running and queued', cx, box.y+box.h-12);
+    ctx.restore();
+  }
+  // 3 — blocks stacking
+  function drawStack(ctx,box,d,t){
+    var cols=Math.min(14,Math.max(4,d.rs.length));
+    var cw=box.w/cols;
+    ctx.save();
+    for(var c=0;c<cols;c++){
+      var x=box.x+c*cw+2, w=cw-4;
+      var stack=Math.max(0,Math.round((c%5===0? (d.busy.length?2:0) : (c%3===0?1:0))));
+      for(var k=0;k<stack;k++){
+        var y=box.y+box.h-14-k*15;
+        // a settling wobble, so the stack breathes rather than sits
+        var wob=Math.sin(t*1.3+c*0.7+k)*1.4;
+        ctx.fillStyle=k?'#c9d3e6':'#2f5fd0';
+        ctx.fillRect(x+wob,y,w-2,12);
+      }
+    }
+    ctx.fillStyle='#8a93a3'; ctx.font='11.5px Inter,system-ui,sans-serif'; ctx.textAlign='left';
+    ctx.fillText('one column per runner — blue is the heavy lane', box.x+4, box.y+14);
+    ctx.restore();
+  }
+  // 4 — constellation
+  function drawStars(ctx,box,d,t){
+    var n=Math.min(40,d.rs.length);
+    var sky={x:box.x+10,y:box.y+10,w:box.w-20,h:box.h-20};
+    var pts=swarmFor('stars',n,sky,{r:3,pad:14,repel:260,attract:1.1,noise:7,damp:0.965});
+    stepSwarm(pts,sky,t,0.016,{repel:260,attract:1.1,noise:7,damp:0.965});
+    var frac=Math.min(1,d.busy.length/Math.max(1,d.rs.length));
+    pts.forEach(function(p,i){
+      p.r=3.4; p.busy=(i/n)<frac;
+    });
+    ctx.save();
+    ctx.strokeStyle='rgba(91,101,119,.28)'; ctx.lineWidth=1;
+    pts.forEach(function(p,i){
+      var q=pts[(i+3)%pts.length];
+      ctx.beginPath(); ctx.moveTo(p.x,p.y); ctx.lineTo(q.x,q.y); ctx.stroke();
+    });
+    pts.forEach(function(p){
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle=p.busy?'#2f5fd0':'#c6ccd6'; ctx.fill();
+    });
+    ctx.fillStyle='#8a93a3'; ctx.font='11.5px Inter,system-ui,sans-serif'; ctx.textAlign='left';
+    ctx.fillText('each runner a star, each job a line — the bright ones are busy', box.x+4, box.y+14);
+    ctx.restore();
+  }
+  // 5 — radar sweep
+  function drawRadar(ctx,box,d,t){
+    var cx=box.x+box.w/2, cy=box.y+box.h/2+6, R=Math.min(box.w,box.h)*0.38;
+    ctx.save();
+    ctx.strokeStyle='#dfe4ec'; ctx.lineWidth=1;
+    [0.34,0.67,1].forEach(function(k){
+      ctx.beginPath(); ctx.arc(cx,cy,R*k,0,Math.PI*2); ctx.stroke();
+    });
+    var sweep=(t*0.9)%(Math.PI*2);
+    var grad=ctx.createLinearGradient(cx,cy,cx+Math.cos(sweep)*R,cy+Math.sin(sweep)*R);
+    grad.addColorStop(0,'rgba(47,95,208,0)'); grad.addColorStop(1,'rgba(47,95,208,.28)');
+    ctx.fillStyle=grad;
+    ctx.beginPath(); ctx.moveTo(cx,cy); ctx.arc(cx,cy,R,sweep-0.55,sweep); ctx.closePath(); ctx.fill();
+    var zone={x:cx-R*0.9,y:cy-R*0.9,w:R*1.8,h:R*1.8};
+    var blips=swarmFor('blips',Math.max(1,d.busy.length),zone,{r:3.6,pad:8,repel:700,attract:0.5,noise:16,damp:0.955});
+    stepSwarm(blips,zone,t,0.016,{repel:700,attract:0.5,noise:16,damp:0.955});
+    blips.forEach(function(b,i){
+      var r=d.busy[i%Math.max(1,d.busy.length)];
+      ctx.beginPath(); ctx.arc(b.x,b.y,3.6,0,Math.PI*2); ctx.fillStyle='#2f5fd0'; ctx.fill();
+      if(r){
+        ctx.fillStyle='#3c4453'; ctx.font='9.5px ui-monospace,monospace'; ctx.textAlign='center';
+        ctx.fillText((r.name.replace(/^gyrum-ci-runner-/,'')||r.name).slice(0,14), b.x, b.y+15);
+      }
+    });
+    ctx.fillStyle='#8a93a3'; ctx.font='11.5px Inter,system-ui,sans-serif'; ctx.textAlign='left';
+    ctx.fillText('a sweep over the pool — a blip is a busy runner', box.x+4, box.y+14);
+    ctx.restore();
+  }
+  function renderSprites(){
+    var canvas=document.getElementById('sprite-canvas');
+    if(!canvas) return;
+    var w=canvas.clientWidth||(canvas.parentNode&&canvas.parentNode.clientWidth)||900;
+    if(canvas.width!==w||canvas.height!==900){ canvas.width=w; canvas.height=900; }
+    var ctx=canvas.getContext('2d');
+    ctx.fillStyle='#fbfcfd'; ctx.fillRect(0,0,w,900);
+    var d=spriteData(), t=spriteState.t;
+    var pw=(w-24*2-12)/2, ph=280;
+    var boxes=[
+      ['Fish in a bowl','one fish per busy runner; the water level is how full the pool is',drawFish],
+      ['Rain into a basin','one drop per job, running and queued',drawRain],
+      ['Stacking blocks','one column per runner; blue blocks are the heavy lane',drawStack],
+      ['A constellation','one star per runner, one line per job',drawStars],
+      ['Radar','a sweep over the pool; blips are busy runners',drawRadar]
+    ];
+    boxes.forEach(function(b,i){
+      var col=i%2, row=Math.floor(i/2);
+      var x=24+col*(pw+12), y=16+row*(ph+16);
+      if(i===4){ x=24+(w-24*2-pw)/2; }
+      var box=spritePanel(ctx,x,y,pw,ph,b[0],b[1]);
+      b[2](ctx,box,d,t);
+    });
+    var cap=document.getElementById('sprite-cap');
+    if(cap) cap.textContent='Live: '+d.busy.length+' busy runner(s), '+d.running.length+' job(s) running, '
+      +d.queued.length+' queued, '+d.rs.length+' runners known.';
+  }
+  function spriteLoop(){
+    var last=performance.now();
+    function loop(now){
+      var dt=Math.min(0.05,(now-last)/1000); last=now;
+      spriteState.t+=dt;
+      if(current==='sprites') renderSprites();
+      requestAnimationFrame(loop);
+    }
+    requestAnimationFrame(loop);
+  }
+
+  // ── DASHBOARD ──
+  function gauge(label, value, total, color, note){
+    var pct = total>0 ? Math.max(0, Math.min(1, value/total)) : 0;
+    var R=54, C=2*Math.PI*R, arc=C*pct;
+    var svg='<svg viewBox="0 0 140 96" width="100%" height="96" aria-label="'+esc(label)+'">'
+      + '<circle cx="70" cy="58" r="'+R+'" fill="none" stroke="#eef0f3" stroke-width="11"/>'
+      + '<circle cx="70" cy="58" r="'+R+'" fill="none" stroke="'+color+'" stroke-width="11"'
+      + ' stroke-linecap="round" stroke-dasharray="'+arc.toFixed(1)+' '+C.toFixed(1)+'"'
+      + ' transform="rotate(-90 70 58)"/>'
+      + '<text x="70" y="60" text-anchor="middle" font-size="21" font-weight="600" fill="#141920">'
+      + Math.round(pct*100)+'%</text>'
+      + '<text x="70" y="76" text-anchor="middle" font-size="10" fill="#6b7381">'
+      + esc(value+'/'+total)+'</text></svg>';
+    return '<div class="gauge"><div class="gk">'+esc(label)+'</div>'+svg
+      +'<div class="gv" style="margin-top:-6px">'+esc(value)+' of '+esc(total)+'</div>'
+      +'<div class="gs">'+esc(note||'')+'</div></div>';
+  }
+  function renderDash(){
+    var rs=runners(), js=jobs(), r=runs(), tr=(state&&state.train)||{};
+    var busy=rs.filter(function(x){return x.busy;}).length;
+    var done=js.filter(function(j){return j.status==='completed';});
+    var okc=done.filter(function(j){return j.conclusion==='success';}).length;
+    var shards=js.filter(function(j){ return /structural-checks \(shard /.test(j.name||''); });
+    var shardsDone=shards.filter(function(j){return j.status==='completed';}).length;
+    var held=r.filter(function(x){return x.status==='in_progress';});
+    var g=document.getElementById('dash-gauges');
+    g.innerHTML=[
+      gauge('pool busy', busy, rs.length, '#9a6410', 'runners holding a job'),
+      gauge('shards done', shardsDone, shards.length, '#2f5fd0', 'of the shards observed'),
+      gauge('job pass rate', okc, done.length||1, '#1f6d4f', 'finished and green'),
+      gauge('heavy slot', held.length?1:0, 1, held.length?'#a83a4a':'#1f6d4f', held.length?'held by a run':'free')
+    ].join('');
+
+    // timeline: three hours of job life, one row per runner
+    var now=Date.now(), span=3600*1000, t0=now-span;
+    var byRunner={};
+    js.forEach(function(j){
+      if(!j.started_at) return;
+      var st=new Date(j.started_at).getTime();
+      if(st<t0) return;
+      var en=j.completed_at? new Date(j.completed_at).getTime(): now;
+      (byRunner[j.runner||'—']=byRunner[j.runner||'—']||[]).push({a:st,b:en,j:j});
+    });
+    var names=Object.keys(byRunner).sort();
+    var tl=document.getElementById('dash-timeline');
+    if(!names.length){ tl.innerHTML='<p style="color:var(--muted)">no job started in the last three hours</p>'; }
+    else{
+      tl.innerHTML=names.map(function(n){
+        return '<div class="tlrow" title="'+esc(n)+'">'+byRunner[n].map(function(e){
+          var x=(e.a-t0)/span*100, w=Math.max(0.8,(e.b-e.a)/span*100);
+          var col=e.j.conclusion==='success'?'#1f6d4f':(e.j.conclusion==='failure'?'#a83a4a':
+                (e.j.status==='in_progress'?'#9a6410':'#2f5fd0'));
+          var op=e.j.status==='in_progress'?'0.85':'0.55';
+          return '<span class="tlbar" style="left:'+x.toFixed(2)+'%;width:'+w.toFixed(2)+'%;background:'+col+';opacity:'+op+'"></span>';
+        }).join('')+'</div>';
+      }).join('')
+      + '<div class="tlaxis"><span>-60m</span><span>-40m</span><span>-20m</span><span>now</span></div>'
+      + '<div class="tl" style="height:'+(names.length*16+6)+'px;margin-top:6px">'
+      + names.map(function(n){
+          return '<div class="tlrow">'+byRunner[n].map(function(e){
+            var x=(e.a-t0)/span*100, w=Math.max(0.8,(e.b-e.a)/span*100);
+            var col=e.j.conclusion==='success'?'#1f6d4f':(e.j.conclusion==='failure'?'#a83a4a':
+                  (e.j.status==='in_progress'?'#9a6410':'#2f5fd0'));
+            var op=e.j.status==='in_progress'?'0.85':'0.5';
+            return '<span class="tlbar" style="left:'+x.toFixed(2)+'%;width:'+w.toFixed(2)+'%;background:'+col+';opacity:'+op+'"></span>';
+          }).join('')+'</div>';
+        }).join('')+'</div>'
+      + '<div class="tlaxis" style="margin-top:8px"><span>-60m</span><span>-40m</span><span>-20m</span><span>now</span></div>';
+    }
+
+    // bars: jobs and minutes per runner
+    var work={};
+    js.forEach(function(j){
+      if(!j.runner) return;
+      var m=mins(j.started_at,j.completed_at);
+      (work[j.runner]=work[j.runner]||{n:0,min:0});
+      work[j.runner].n++;
+      if(m!=null) work[j.runner].min+=m;
+    });
+    var keys=Object.keys(work).sort(function(a,b){ return work[b].min-work[a].min; });
+    var maxMin=keys.length? work[keys[0]].min:1, maxN=keys.length? work[keys[0]].n:1;
+    document.getElementById('dash-bars').innerHTML=
+      '<div style="font-size:12px;color:var(--muted);margin-bottom:6px">minutes carried</div>'
+      + keys.slice(0,12).map(function(k){
+          return '<div class="barrow"><span class="bn" title="'+esc(k)+'">'+esc(k)+'</span>'
+            +'<span class="bt"><i style="width:'+Math.round(work[k].min/maxMin*100)+'%"></i></span>'
+            +'<span class="bv">'+work[k].min.toFixed(1)+'m · '+work[k].n+'</span></div>';
+        }).join('')
+      + '<div style="font-size:12px;color:var(--muted);margin:12px 0 6px">jobs run</div>'
+      + keys.slice(0,12).map(function(k){
+          return '<div class="barrow"><span class="bn" title="'+esc(k)+'">'+esc(k)+'</span>'
+            +'<span class="bt"><i style="width:'+Math.round(work[k].n/maxN*100)+'%;background:#5b6577"></i></span>'
+            +'<span class="bv">'+work[k].n+'</span></div>';
+        }).join('');
+
+    // throughput: the fleet's own rate, live and over its windows
+    var st=(state&&state.stats)||{}, tp=st.throughput||{}, days=state.days||[];
+    var yest=null, week=[];
+    days.forEach(function(d){
+      if(d.runs==null) return;
+      week.push(d);
+      var twoAgo=new Date(Date.now()-2*86400000).toISOString().slice(0,10);
+      if(d.day===twoAgo) yest=d;
+    });
+    var runs7=week.reduce(function(a,d){return a+(d.runs||0);},0);
+    var liveRate=tp.completed_60m||0;
+    var rate24=tp.completed_24h? Math.round(tp.completed_24h/24*10)/10 : null;
+    var tpEl=document.getElementById('dash-throughput');
+    var rows=[
+      ['live — trailing 60 minutes', liveRate+' jobs', liveRate+' /h', liveRate>0?'#1f6d4f':'#8a93a3'],
+      ['last 24 hours', (tp.completed_24h||0)+' jobs', rate24==null?'—':rate24+' /h avg', '#2f5fd0'],
+      ['yesterday', yest&&yest.runs!=null? yest.runs+' runs' : '—',
+        yest&&yest.runs!=null? (Math.round(yest.runs/24*10)/10)+' /h avg' : '—', '#5b6577'],
+      ['last 7 days', runs7+' runs', (Math.round(runs7/7*10)/10)+' /h avg', '#5b6577'],
+      ['pass rate, last 24h', tp.pass_rate_24h!=null? Math.round(tp.pass_rate_24h*100)+'%' : '—', '', '#1f6d4f']
+    ];
+    tpEl.innerHTML='<table><thead><tr><th>Window</th><th>Volume</th><th>Rate</th></tr></thead><tbody>'
+      + rows.map(function(r){
+          return '<tr><td>'+esc(r[0])+'</td><td class="mono">'+esc(r[1])+'</td>'
+            +'<td class="mono" style="color:'+r[3]+'">'+esc(r[2])+'</td></tr>';
+        }).join('')+'</tbody></table>'
+      + '<p class="note">Per-day history (runs):</p>'
+      + '<div style="display:flex;align-items:flex-end;gap:5px;height:64px">'
+      + week.map(function(d){
+          var mx=Math.max(1, runs7/7);
+          var h=Math.max(3, Math.round((d.runs||0)/mx*56));
+          return '<div style="flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:3px" title="'
+            +esc(d.day+': '+d.runs+' runs')+'">'
+            + '<span style="font-family:var(--mono);font-size:10px;color:var(--muted)">'+(d.runs||0)+'</span>'
+            + '<span style="display:block;width:100%;height:'+h+'px;background:#2f5fd0;border-radius:3px 3px 0 0;opacity:.75"></span>'
+            + '<span style="font-family:var(--mono);font-size:9px;color:var(--muted)">'+esc(d.day.slice(5))+'</span></div>';
+        }).join('')+'</div>';
+
+    // the registry's own per-category view
+    var cats=(st.categories||[]).slice().sort(function(a,b){
+      return (b.running_count+b.queued_count)-(a.running_count+a.queued_count);
+    });
+    var cq=document.getElementById('dash-categories');
+    if(!cats.length){ cq.innerHTML='<p style="color:var(--muted)">the registry is not reporting categories</p>'; }
+    else{
+      cq.innerHTML='<table><thead><tr><th>Repository · workflow · job</th><th>Run</th><th>Queued</th><th>Done</th><th>p50</th></tr></thead><tbody>'
+        + cats.slice(0,12).map(function(c){
+            return '<tr><td style="font-size:12.4px">'+esc(c.repo)+' <span class="muted">·</span> '+esc(c.workflow)
+              +'<br><span style="color:var(--muted);font-size:11.5px">'+esc(c.job_name)+'</span></td>'
+              +'<td class="mono">'+(c.running_count||0)+'</td>'
+              +'<td class="mono">'+(c.queued_count||0)+'</td>'
+              +'<td class="mono">'+(c.completed_count||0)+'</td>'
+              +'<td class="mono">'+(c.p50_duration_ms!=null? Math.round(c.p50_duration_ms/1000)+'s':'—')+'</td></tr>';
+          }).join('')+'</tbody></table>'
+        + ((st.warnings&&st.warnings.length)? '<p class="note">'+esc(st.warnings.join(' · '))+'</p>' : '');
+    }
+
+    // the written summary
+    var entries=tr.entries||[], head=entries[0];
+    var oldest=entries.reduce(function(a,e){
+      if(!a) return e;
+      var ta=a.current_queued_at||a.enqueued_at, tb=e.current_queued_at||e.enqueued_at;
+      if(!ta) return a; if(!tb) return e;
+      return (new Date(ta)<new Date(tb))?a:e;
+    }, null);
+    var qd=js.filter(function(j){return j.status==='queued';}).length;
+    document.getElementById('dash-summary').innerHTML =
+      '<p><strong>The pool is '+(rs.length?Math.round(busy/rs.length*100):0)+'% busy</strong> — '
+      + busy+' of '+rs.length+' runners hold a job, and '+(rs.length-busy)+' are idle and could take work. '
+      + 'The heavy lane, which is what the merge train waits on, is serialised: one devtools run at a time, '
+      + 'and '+(held.length?('the slot is held by <strong>'+esc(held[0].branch||'a run')+'</strong>'):'the slot is free')+'. </p>'
+      + '<p><strong>'+(qd?qd+' job(s) are queued for a runner':'No job is waiting for a runner')+'</strong>, and '
+      + (shardsDone+' of '+shards.length+' observed shards have finished. ')
+      + (okc+' of '+done.length+' finished job(s) passed')+'.</p>'
+      + '<p><strong>The train reads '+esc(tr.state||'unknown')+'</strong>'
+      + (tr.read_at? ', last read '+esc(ago(tr.read_at)):'')+', '
+      + ((tr.entries||[]).length)+' pull requests in service order'
+      + (head? ', served from <strong>#'+head.number+'</strong>' : '')+'. '
+      + (oldest&&(oldest.current_queued_at||oldest.enqueued_at)
+         ? 'The longest wait at the head of the order is ' + esc(humanWait(oldest.current_queued_at||oldest.enqueued_at)) + '. ' : '')
+      + '</p>'
+      + '<p style="color:var(--muted)">Every figure on this page comes from the same live payload the other views use: '
+      + 'warp\'s runner registry and the GitHub Actions run history, read every twenty-five seconds.</p>';
+  }
+  function humanWait(iso){
+    if(!iso) return 'unknown';
+    var s=(Date.now()-new Date(iso))/1000;
+    if(s<3600) return Math.round(s/60)+' minutes';
+    if(s<86400) return Math.round(s/3600)+' hours';
+    return Math.round(s/86400)+' days';
+  }
+
+  // ── the footer: which build, and how fresh the read is ──
+  function renderFoot(){
+    var f=document.getElementById('foot');
+    if(!f) return;
+    var v=(state&&state.version)||{};
+    var rs=runners();
+    var online=rs.filter(function(r){return r.status==='online';}).length;
+    var hosts=((state&&state.fleet&&state.fleet.hosts)||[]).length;
+    var built=v.built_at? ' · built '+ago(v.built_at) : '';
+    f.innerHTML='<b>backend:</b> '+esc(v.tag||'unknown')+' · <b>frontend:</b> '+esc(v.tag||'unknown')
+      + built+' · <b>sha:</b> '+esc(v.sha||'—')
+      + '<br>synced: '+esc(state&&state.generated_at? state.generated_at.slice(11,19)+'Z':'—')
+      + ' · <b>source:</b> warp runner registry + GitHub Actions'
+      + ' · <b>runners:</b> '+online+'/'+rs.length+' online'
+      + ' · <b>live hosts:</b> '+hosts
+      + '<br>this page is a local presentation export; the credentials stay in the server that feeds it.';
+  }
+
+  // ── the two objectives ──
+  // time to be seen: how long a pull request waited before the fleet picked
+  // it up.  time to process: how long it has waited in the train since.
+  var OBJ_SEEN_TARGET = 24*3600;    // under a day to be seen
+  var OBJ_PROCESS_TARGET = 3600;     // under an hour to process
+  function since(iso){
+    if(!iso) return null;
+    var t=new Date(iso).getTime();
+    if(!t) return null;
+    return (Date.now()-t)/1000;
+  }
+  function objBar(label, secs, target, invert){
+    if(secs==null) return '<span style="color:var(--muted)">—</span>';
+    var over = invert ? secs>target : secs>target;
+    var col = over? 'var(--rose)' : (secs>target/2? 'var(--amber)':'var(--green)');
+    var pct = Math.min(100, Math.round(secs/target*100));
+    var txt = humanSpan(secs);
+    return '<div style="min-width:132px">'
+      + '<div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:11.5px;color:'+col+'">'
+      + '<span>'+esc(txt)+'</span><span>'+esc(label)+'</span></div>'
+      + '<div style="height:5px;border-radius:3px;background:var(--surface-2);margin-top:3px;overflow:hidden">'
+      + '<i style="display:block;height:100%;width:'+pct+'%;background:'+col+';border-radius:3px"></i></div></div>';
+  }
+  function humanSpan(s){
+    if(s==null) return '—';
+    if(s<3600) return Math.round(s/60)+'m';
+    if(s<86400) return Math.round(s/3600)+'h '+Math.round((s%3600)/60)+'m';
+    return Math.round(s/86400)+'d '+Math.round((s%86400)/3600)+'h';
+  }
+
+  // ── DELIVERY PHASES ──
+  var PHASE_ORDER = ['waiting','waiting fixed','in testing','passed',
+                     'waiting for deployment','deployed','done'];
+  var PHASE_HINT = {
+    'waiting':'Open, not green, no requested change, nobody holding it.',
+    'waiting fixed':'Open with changes requested, or a conflict on the train.',
+    'in testing':'Open, and the heavy gate has a run on its current head — this is the single heavy slot.',
+    'passed':'Open, checks green, review approved — waiting its turn.',
+    'waiting for deployment':'Merged, and the delivery tail has not finished.',
+    'deployed':'Merged and the owning ticket is done — delivered less than a day ago.',
+    'done':'Merged, delivered, and settled for more than a day.'
+  };
+  // The heavy gate is one slot. A pull request's head either has a heavy
+  // run on it or it has never been through the gate at all — and the light
+  // lane alone would call that green. So the column says which it is.
+  var HEAVY_LABEL = {
+    'pending':'queued', 'queued':'queued', 'waiting':'queued', 'requested':'queued',
+    'in_progress':'running', 'success':'passed', 'failure':'failed',
+    'cancelled':'cancelled', 'skipped':'skipped', 'completed':'done', 'neutral':'done'
+  };
+  function heavyPill(r){
+    var h=r.heavy;
+    if(!h) return '<span class="pill mut" title="the heavy gate has never run on this head">not run</span>';
+    var lbl=HEAVY_LABEL[h]||h;
+    var cls=(h==='success')?'ok':((h==='failure'||h==='cancelled')?'bad':
+            ((h==='pending'||h==='queued'||h==='in_progress'||h==='waiting'||h==='requested')?'warn':'mut'));
+    var tip='heavy gate on this head: '+h+(r.heavy_at?(' · '+ago(r.heavy_at)):'');
+    return '<span class="pill '+cls+'" title="'+esc(tip)+'">'+esc(lbl)+'</span>';
+  }
+  function renderDelivery(){
+    var ph=(state&&state.phases)||{};
+    var t=document.getElementById('delivery-tiles');
+    t.innerHTML=PHASE_ORDER.map(function(k){
+      var n=(ph[k]||[]).length;
+      var cls = k==='passed'||k==='deployed'||k==='done' ? 'good' : (k==='waiting fixed'||k==='waiting for deployment' ? 'warn' : '');
+      return tile(k,n,'pull requests',cls);
+    }).join('');
+    document.getElementById('delivery-rules').innerHTML=
+      '<dl class="kv"><dt>waiting</dt><dd>open · checks not green · review not CHANGES_REQUESTED</dd>'
+      + '<dt>waiting fixed</dt><dd>reviewDecision = CHANGES_REQUESTED, or label train:conflict</dd>'
+      + '<dt>in testing</dt><dd>open · the heavy gate has a run on this pull request’s current head '
+      + '(queued or running), or statusCheckRollup = PENDING</dd>'
+      + '<dt>passed</dt><dd>open · rollup SUCCESS · reviewDecision APPROVED — read the Heavy column: '
+      + 'the heavy gate only ever runs for the train’s one current candidate</dd>'
+      + '<dt>waiting for deployment</dt><dd>merged · owning ticket not done</dd>'
+      + '<dt>deployed</dt><dd>merged · ticket done · merged less than 24h ago</dd>'
+      + '<dt>done</dt><dd>merged · ticket done · merged more than 24h ago</dd></dl>';
+    var host=document.getElementById('delivery-tables');
+    host.innerHTML=PHASE_ORDER.map(function(k){
+      var list=ph[k]||[];
+      return '<div class="card"><h3>'+esc(k)+' <span style="color:var(--muted);font-weight:400">'
+        + list.length+'</span></h3><p class="hint">'+esc(PHASE_HINT[k])+'</p>'
+        + (list.length? '<table><thead><tr><th>PR</th><th>Ticket</th><th>Title</th><th>Checks</th><th>Heavy</th><th>Review</th><th>Time to be seen</th><th>Time to process</th><th>Updated</th></tr></thead><tbody>'
+          + list.slice(0,25).map(function(r){
+              var c=r.checks==='SUCCESS'?'ok':(r.checks==='FAILURE'||r.checks==='ERROR'?'bad':(r.checks==='PENDING'?'warn':'mut'));
+              var rv=r.review==='APPROVED'?'ok':(r.review==='CHANGES_REQUESTED'?'bad':'mut');
+              return '<tr><td class="mono">#'+esc(r.pr)+'</td>'
+                +'<td class="mono">'+(r.ticket? 'warp#'+r.ticket : '—')+'</td>'
+                +'<td style="max-width:420px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="'+esc(r.title)+'">'+esc(r.title)+'</td>'
+                +'<td><span class="pill '+c+'">'+esc(r.checks||'—')+'</span></td>'
+                +'<td>'+heavyPill(r)+'</td>'
+                +'<td><span class="pill '+rv+'">'+esc(r.review||'—')+'</span></td>'
+                +'<td>'+objBar('seen', (r.seen_at&&r.created_at)? since(r.created_at)-since(r.seen_at) : null, OBJ_SEEN_TARGET)+'</td>'
+                +'<td>'+objBar('process', r.seen_at? since(r.seen_at) : null, OBJ_PROCESS_TARGET)+'</td>'
+                +'<td style="color:var(--muted)">'+esc(ago(r.updated_at))+'</td></tr>';
+            }).join('')+'</tbody></table>'
+          : '<p style="color:var(--muted)">nothing here</p>')
+        + '</div>';
+    }).join('');
+  }
+
+  // ── LIVENESS ──
+  function renderLive(){
+    var js=jobs(), rs=runners(), tr=(state&&state.train)||{};
+    var run=js.filter(function(j){return j.status==='in_progress';});
+    var qd=js.filter(function(j){return j.status==='queued';});
+    var done=js.filter(function(j){return j.status==='completed';});
+    var okc=done.filter(function(j){return j.conclusion==='success';}).length;
+    var t=document.getElementById('live-tiles');
+    t.innerHTML=[
+      tile('running jobs', run.length, 'on the pool', run.length?'info':''),
+      tile('queued jobs', qd.length, 'waiting for a runner', qd.length?'warn':''),
+      tile('finished', done.length, okc+' passed', done.length? (okc===done.length?'good':'warn'):''),
+      tile('runners busy', rs.filter(function(r){return r.busy;}).length, 'of '+rs.length),
+      tile('train state', tr.state||'—', tr.read_at? 'read '+ago(tr.read_at):'', tr.state==='ok'?'good':'warn'),
+      tile('order complete', tr.order_complete===false?'no':'yes', 'service order', tr.order_complete===false?'warn':'good')
+    ].join('');
+
+    var f=document.getElementById('live-jobs');
+    f.innerHTML=js.slice(0,40).map(function(j){
+      var c=j.conclusion==='success'?'ok':(j.conclusion==='failure'?'bad':(j.status==='queued'?'warn':'mut'));
+      var lbl=j.status==='completed'? (j.conclusion||'completed') : j.status;
+      return '<div><span class="pill '+c+'">'+esc(lbl)+'</span><span>'+esc(j.name)+'</span>'
+        +'<span style="margin-left:auto;color:var(--muted)">'+esc(j.runner||'—')+' · '+esc(j.branch||'')+'</span></div>';
+    }).join('') || '<div><span>no jobs observed</span></div>';
+
+    var entries=(tr.entries||[]).slice(0,12);
+    document.getElementById('live-train').innerHTML=
+      '<dl class="kv"><dt>repo</dt><dd>'+esc(tr.repo||'—')+'</dd>'
+      + '<dt>read at</dt><dd>'+esc(tr.read_at||'—')+'</dd>'
+      + '<dt>state</dt><dd>'+esc(tr.state||'—')+'</dd>'
+      + '<dt>depth</dt><dd>'+((tr.entries||[]).length)+'</dd></dl>'
+      + '<div style="margin-top:12px">'+(entries.map(function(e){
+          return '<div style="display:flex;gap:9px;padding:5px 0;border-bottom:1px solid var(--line);font-size:12.6px">'
+            +'<span class="mono" style="color:var(--ink);min-width:26px">'+e.position+'</span>'
+            +'<span class="mono">#'+e.number+'</span>'
+            +'<span style="color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(e.title||'')+'</span>'
+            +'<span style="margin-left:auto;color:var(--muted)">'+esc(e.checks||'')+'</span></div>';
+        }).join(''))+'</div>';
+  }
+
+  // ── MOVEMENT ──
+  function renderMove(){
+    var rs=runners(), js=jobs(), r=rs.filter(function(x){return x.busy;});
+    var held=runs().filter(function(x){return x.status==='in_progress';});
+    var qd=runs().filter(function(x){return x.status==='queued';});
+    var f=document.getElementById('flow');
+    f.innerHTML=[
+      stage('Queue', (state&&state.train&&state.train.entries||[]).length, 'in service order', 'busy'),
+      stage('Heavy slot', held.length?1:0, held.length? (held[0].branch||'held') : 'free', held.length?'busy':''),
+      stage('Runners', rs.filter(function(x){return x.busy;}).length, 'busy of '+rs.length, 'busy'),
+      stage('Jobs', js.filter(function(j){return j.status==='in_progress';}).length, 'in flight now', 'busy'),
+      stage('Merged', 0, 'waiting on a green check', held.length?'':'busy')
+    ].join('')
+    + '<div class="lane" style="margin-top:14px">'
+    + (held.length? held.map(function(x){return '<span class="chip">'+esc(x.branch||x.id)+' · attempt '+(x.attempt||1)+'</span>';}).join('') : '')
+    + qd.slice(0,6).map(function(x){return '<span class="chip" style="border-style:dashed">'+esc(x.branch||x.id)+' · waiting</span>';}).join('')
+    + '</div>';
+
+    document.getElementById('move-runs').innerHTML='<table><thead><tr><th>Run</th><th>Branch</th><th>State</th><th>Created</th></tr></thead><tbody>'
+      + runs().slice(0,10).map(function(x){
+          var c=x.status==='in_progress'?'warn':(x.conclusion==='failure'?'bad':(x.status==='queued'?'mut':'ok'));
+          return '<tr><td class="mono">'+esc(x.id)+' · '+esc(x.name)+'</td><td class="mono">'+esc(x.branch)+'</td>'
+            +'<td><span class="pill '+c+'">'+esc(x.status==='completed'?(x.conclusion||'done'):x.status)+'</span></td>'
+            +'<td style="color:var(--muted)">'+esc(ago(x.created_at))+'</td></tr>';
+        }).join('')+'</tbody></table>';
+  }
+  function stage(k,n,s,cls){
+    return '<div class="stage '+(cls||'')+'"><h4>'+esc(k)+'</h4><div class="n">'+esc(n)+'</div><div class="s">'+esc(s)+'</div>'
+      +'<span class="flowdots"><i></i></span></div>';
+  }
+
+  // ── routing ──
+  function route(){
+    var h=location.hash.replace(/^#/,'');
+    if(h.indexOf('runner/')===0){
+      detailName=decodeURIComponent(h.slice(7));
+      current='detail';
+    } else {
+      detailName=null;
+      current=(h||'home');
+      if(VIEWS.map(function(v){return v.id;}).indexOf(current)<0) current='home';
+    }
+    Array.prototype.forEach.call(document.querySelectorAll('.view'),function(v){
+      v.classList.toggle('on', v.id==='v-'+current);
+    });
+    Array.prototype.forEach.call(nav.querySelectorAll('a'),function(a){
+      a.classList.toggle('on', a.dataset.view===current || (current==='detail'&&a.dataset.view==='runners'));
+    });
+    document.getElementById('viewtitle').textContent =
+      current==='detail' ? (detailName||'Runner') : (VIEWS.filter(function(v){return v.id===current;})[0]||{}).label;
+    document.getElementById('lede').textContent = LEDE[current]||'';
+    render();
+    if(current==='rooms') renderRooms();
+    if(current==='caves') buildCaves();
+    if(current==='sprites') renderSprites();
+    window.scrollTo(0,0);
+  }
+  function render(){
+    if(!state) return;
+    try{
+      renderHome(); renderRunners(); renderMeasure(); renderStages(); renderUsage(); renderDelivery(); renderDash(); renderPatterns(); renderLive(); renderMove();
+    tickClock();
+      tickClock();
+      if(current==='detail') renderDetail();
+      var b=document.getElementById('errbar'); if(b){ b.style.display='none'; }
+    }catch(e){
+      var b=document.getElementById('errbar');
+      if(b){ b.style.display='block'; b.textContent='render error: '+(e&&e.message?e.message:e); }
+      var st=document.getElementById('stamp'); if(st) st.textContent='render error';
+    }
+    document.getElementById('stamp').textContent='live '+state.generated_at;
+  }
+
+  function poll(){
+    fetch('/api/state',{cache:'no-store'})
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        var moved=phaseDiff(j.phases||{});
+        state=j; render();
+        if(moved && Object.keys(moved).length){
+          Array.prototype.forEach.call(document.querySelectorAll('#delivery-tables tr'),function(tr){
+            var pr=parseInt((tr.textContent.match(/#(\d+)/)||[])[1],10);
+            if(moved[pr]) tr.classList.add('moved');
+          });
+        }
+      })
+      .catch(function(e){ document.getElementById('stamp').textContent='snapshot unavailable'; });
+  }
+  var resizeTimer=null;
+  window.addEventListener('resize',function(){
+    if(resizeTimer) clearTimeout(resizeTimer);
+    resizeTimer=setTimeout(function(){
+      if(current==='rooms') renderRooms();
+      if(current==='caves') buildCaves();
+      if(current==='sprites') renderSprites();
+    },180);
+  });
+  window.addEventListener('hashchange',function(){
+    route();
+    if(current==='caves'){ buildCaves(); }
+    if(current==='sprites'){ renderSprites(); }
+    if(current==='patterns'){ renderPatterns(); }
+    if(current==='rooms'){ renderRooms(); }
+  });
+  route(); poll(); setInterval(poll,25000);
+  caveTick(); spriteLoop(); roomsLoop();
+})();
+</script>
+</body>
+</html>

@@ -28,6 +28,17 @@
         },
         {
           "type": "dir",
+          "name": "HOWTO",
+          "children": [
+            {
+              "type": "file",
+              "name": "ledger-clauses-check.md",
+              "path": "docs/HOWTO/ledger-clauses-check.md"
+            }
+          ]
+        },
+        {
+          "type": "dir",
           "name": "images",
           "children": [
             {
@@ -54,6 +65,53 @@
                   "type": "file",
                   "name": "journeys.md",
                   "path": "docs/products/ops.gyrum.ai/journeys.md"
+                }
+              ]
+            },
+            {
+              "type": "dir",
+              "name": "runner-fleet-console",
+              "children": [
+                {
+                  "type": "dir",
+                  "name": "mockups",
+                  "children": [
+                    {
+                      "type": "file",
+                      "name": "arcade-mockups.html",
+                      "path": "docs/products/runner-fleet-console/mockups/arcade-mockups.html"
+                    },
+                    {
+                      "type": "file",
+                      "name": "arcade-mockups.js",
+                      "path": "docs/products/runner-fleet-console/mockups/arcade-mockups.js"
+                    },
+                    {
+                      "type": "file",
+                      "name": "README.md",
+                      "path": "docs/products/runner-fleet-console/mockups/README.md"
+                    },
+                    {
+                      "type": "file",
+                      "name": "runner-fleet-infographic.html",
+                      "path": "docs/products/runner-fleet-console/mockups/runner-fleet-infographic.html"
+                    }
+                  ]
+                },
+                {
+                  "type": "file",
+                  "name": "clauses.md",
+                  "path": "docs/products/runner-fleet-console/clauses.md"
+                },
+                {
+                  "type": "file",
+                  "name": "journeys.md",
+                  "path": "docs/products/runner-fleet-console/journeys.md"
+                },
+                {
+                  "type": "file",
+                  "name": "queue-stages.md",
+                  "path": "docs/products/runner-fleet-console/queue-stages.md"
                 }
               ]
             }
@@ -96,6 +154,11 @@
             },
             {
               "type": "file",
+              "name": "native-capture-provenance-contract.md",
+              "path": "docs/shared/native-capture-provenance-contract.md"
+            },
+            {
+              "type": "file",
               "name": "README.md",
               "path": "docs/shared/README.md"
             },
@@ -116,6 +179,11 @@
               "path": "docs/template/new-product.md"
             }
           ]
+        },
+        {
+          "type": "file",
+          "name": "design-system.md",
+          "path": "docs/design-system.md"
         },
         {
           "type": "file",

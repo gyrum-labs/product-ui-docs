@@ -61,7 +61,7 @@ Sections enclosed by `<!-- gyrum-*-vN:START --> ... <!-- gyrum-*-vN:END -->` mar
 **Why:** templated sections enforce fleet-wide rules; hand-editing in one repo creates drift the next agent reads as canonical. To propose a new fleet-wide rule, open a PR against `gyrum-labs/devtools/templates/`, not a project's `CLAUDE.md`.
 <!-- gyrum-template-governance-v3:END -->
 
-<!-- gyrum-devtools-section-v25:START detail=docs/gyrum/devtools.md@v25 — managed by gyrum-setup; do not edit inside markers -->
+<!-- gyrum-devtools-section-v29:START detail=docs/gyrum/devtools.md@v28 — managed by gyrum-setup; do not edit inside markers -->
 ## Devtools
 
 Gyrum devtools install at `~/.gyrum/devtools/`, on PATH via `~/.local/bin/gyrum-*`. Prefer these over hand-rolling — they own the workflow contract (hooks, review gates, finding journal, worktree isolation). The "simpler-looking" alternative bypasses every gate.
@@ -90,7 +90,8 @@ Gyrum devtools install at `~/.gyrum/devtools/`, on PATH via `~/.local/bin/gyrum-
 - **NEVER** merge via `gh pr merge` (incl. `--squash`). ALWAYS `gyrum-review-pr` → `gyrum-complete-pr` from the feature branch (convention is `--merge`; the wrappers verify review, run structural checks, tag the version).
 - **NEVER** POST to `/pulls/:n/reviews` with a persona PAT + your own prose — that bypasses the 3-persona AI review.
 - **NEVER** use `--no-verify` (push) or `--admin` (merge) unless the operator authorised it in writing for that PR. warp#3100 Path-A atomic canon PRs auto-skip the diff-size gate (warp#3702) — do NOT reach for `--admin` on them.
-- **NEVER** override `--ignore-failing-checks` (warp#3107) to silence a real broken test — `gyrum-warp add` an unblocker, `gyrum-warp block` this one, return when it ships.
+- **NEVER** override `--ignore-failing-checks` (warp#3107) to silence a real broken test — `gyrum-warp add` an unblocker, `gyrum-warp block <id> --reason "waiting on warp#NNN"`, return when it ships. A CI-infra failure (dead runner, sandbox EPERM, infra kill) is a wait, not a blocker: keep the claim, leave a ticket comment (`POST /api/v1/items/<id>/comments`), and re-run the checks.
+- **NEVER** link a blocker with `--blocked-by` (`gyrum-warp block` or `gyrum-warp update`) while the ticket's PR holds a persona approval — `blocked_by` is signed review evidence, so the write voids every approval and unblock never clears it; name the blocker in `--reason` instead. `gyrum-warp block` refuses the link (audited override `--skip-signed-approval-guard "<reason ≥ 20 chars>"`; warp#20986).
 - **NEVER** trust an `AGENT-TERMINAL` / `MERGED` claim from a sub-agent that exited non-clean (watchdog-kill / timeout / rate-limit / crash) (warp#3144) — `gh pr view <N> --json mergedAt,state,mergeStateStatus,statusCheckRollup` first.
 - **NEVER** bypass a pre-push hook failure — fix the root cause; the failure is the gate doing its job.
 - **ALWAYS** run `gyrum-review-pr` before opening a PR (it gates build/test/coverage/complexity/file-length/gosec/staticcheck the persona review does not), then `gyrum-complete-pr` immediately on its `READY-TO-MERGE` directive (warp#1342); run `gyrum-pre-flight` first after >15 min autonomous work (warp#1387), and `gyrum-recover` on any non-zero exit.
@@ -99,20 +100,22 @@ Gyrum devtools install at `~/.gyrum/devtools/`, on PATH via `~/.local/bin/gyrum-
 - **ALWAYS** start work via `gyrum-start-work <name> --ticket warp#NNN` (or `--no-ticket` for trivial); the pre-push hook refuses `feat|fix|chore|docs|refactor/*` lacking `.gyrum/branch-meta.json` (warp#1311). Parse the final `WORKTREE:`/`WORKTREE-IN-PLACE:` line and `cd` there before the next Bash call (warp#2593) — non-interactive subshells don't auto-cd. The merge side has the same contract: `gyrum-complete-pr` run from a non-interactive shell REFUSES (printing ~N candidate worktrees) unless invoked from inside the worktree with `GYRUM_WORKDIR=<worktree-abs-path>` exported (warp#9796) — a DIFFERENT variable from `GYRUM_WORKDIR_ROOT`, which only governs cleanup-root resolution (warp#12220).
 - **ALWAYS** write commit-message bodies one paragraph per line (the `commit-msg` hook refuses hard-wrap; bypass `git commit --no-verify`).
 - **ALWAYS** answer the PR body's `## Friction` section when a previous `gyrum-review-pr` pass recorded findings (warp#10961): `none` or one line per previous-pass finding (fixed / worked around + why), inside the `gyrum:friction` markers — placeholders are refused, clean PRs (no prior findings) are ignored. If you changed your PR to please a check you believe is WRONG, say so — that is the friction signal the daily aggregate clusters; in the end-of-ticket retro, prefix the friction answer `workaround: <gate>` (files immediately, deduped) or `latent: <subject>` (rides the daily aggregate). Override `--skip-friction "<reason ≥ 10 chars>"`.
+<!-- doc-truth: ignore-next -->
+- **Raise friction only for gate/tooling cost that implies a structural fix, and make every line carry three fields: mechanism, cost (cycles / time blocked), and the fix it implies** (warp#16930). Friction IS: a mechanism defeating its own purpose (tooling main-merged the branch after collecting approvals, invalidating its own exact-head review — cost N re-review cycles); a gate false-positiving on a legitimate shape (freeze scope-grep refusing a ticket that only MENTIONS a frozen path in its diagnosis); gate A making gate B unsatisfiable (senior_only epic claims vs pr-shape's claimed-branch rule — only exit an audited skip). Friction is NOT: a clear refusal you complied with in one attempt — that is the gate working, comply and move on; style or threshold opinions (400-char caps, message wording — ordinary idea ticket); provider or infra latency and outages (model timeouts, hung provider calls — that is incident/status reporting owned elsewhere, and it drowns the gate signal the aggregate exists to cluster).
 - **ALWAYS** land a regression test with every `type: bug` fix — fail-before / pass-after, named or `// regression: warp#NNN`, on the ticket's `surface:` layer (warp#1008). Override `--skip-regression-fixture "<reason>"`.
 <!-- doc-truth: ignore-next -->
 - **ALWAYS** declare `tier` on every public-IP'd server in `infrastructure/server-ids.json` (and on ansible/`*.tf` diffs); `bff`/`bastion` need `tier_justification`, `internal` needs `exposed_ports` + `trusted_inbound` (ADR-175 / warp#1978). Carry a `## Trust-boundary audit` section on any credential-co-tenancy / privilege-escalation diff (docker/sudo/wheel, cred paths, `privileged`/docker.sock/`cap_add`) (warp#6357). Override `--skip-trust-boundary "<reason ≥ 10 chars>"`.
 - **ALWAYS** ship docs alongside any new `scripts/<name>.sh` / `ansible/roles/<name>/` / ticket-filing workflow — the `doc-pair` gate names the required companion (warp#1981). Override `--skip-doc-pair "<reason ≥ 10 chars>"`.
-- **ALWAYS** assemble dispatch briefs via `gyrum-brief --ticket warp#NNNN` (warp#1527); `gyrum-verify-shipped warp#NNN` before treating a dep as satisfied (warp#2915); `gyrum-dispatch-check warp#NNN` before `Agent(...)` dispatch (warp#3710) — refuse to dispatch on exit 1/2/3/4. Bypass `--skip-already-shipped "<reason ≥ 20 chars>"` only for genuine ship-again.
+- **ALWAYS** assemble dispatch briefs via `gyrum-brief --ticket warp#NNNN` (warp#1527); `gyrum-verify-shipped warp#NNN` before treating a dep as satisfied (warp#2915); `gyrum-dispatch-check warp#NNN` before `Agent(...)` dispatch (warp#3710) — exit 0 is clean dispatch, exit 5 is an explicitly requested audited freshness bypass, and every other exit refuses dispatch. Exit 7 is Warp's canonical non-actionable decision and `--skip-already-shipped` can never bypass it; use that bypass only for a genuine ship-again freshness case.
 - **ALWAYS** ask at wrap-up whether follow-up tickets should be raised; use `gyrum-followup-proposals --dry-run` before filing (warp#2968).
 - **Persona recusal** (warp#1392): commits from a persona bot (`gyrum-priya|marcus|lin|dana|sasha|quinn`) recuse that persona (quorum → 2-of-2); two-or-more default recusals fail closed; each appends a `findings.jsonl` line.
-- **Merge-gate quorum** (warp#7705): the 2-of-3 quorum is enforced at MERGE, not just review. `gyrum-complete-pr` proceeds on 2-of-3 (or 2-of-2 after recusal) APPROVED even with exactly ONE `CHANGES_REQUESTED` — via the normal fleet path (NOT `--admin`/`--no-verify`), auto-filing the lone dissent as a follow-up ticket + an audit line (`quorum-merge-with-dissent`). Two-or-more `CHANGES_REQUESTED` → refuse; the ≥2-recusal fail-closed rule is unchanged.
+- **Merge-gate decision** (warp#14846): approval quorum and rejection veto are independent. `gyrum-complete-pr` requires at least 2-of-3 explicit current-head `APPROVED` reviews (2-of-2 after recusal) **and zero** current-head `CHANGES_REQUESTED`; one rejection blocks normal automation regardless of the approval count. Empty, comment, malformed, missing, and stale-head evidence never counts as approval. Fix and re-review; only an explicit audited operator override may bypass the veto.
 - **Sister-agent collision detection** (warp#1511 / warp#1517): `gyrum-start-work` refuses >2-file (or >50%/≥3-file) open-PR overlap unless `--allow-collision "<reason ≥ 10 chars>"`; sibling to the warp#1108 issue-overlap check.
 <!-- doc-truth: ignore-next -->
 - **Force-push policy** (warp#1340): `policy/git-force-policy.md` — `--force-with-lease` on agent `feat|fix|chore/*` worktrees only; plain `--force` refused anywhere; force-push to `main`/`master` refused with no exception. Sandbox-blocked recovery: non-force `git merge origin/main` fast-forward, NOT `--no-verify` / `--admin`.
-<!-- gyrum-devtools-section-v25:END -->
+<!-- gyrum-devtools-section-v29:END -->
 
-<!-- gyrum-warp-section-v15:START detail=docs/gyrum/warp.md@v15 — managed by gyrum-setup; do not edit inside markers -->
+<!-- gyrum-warp-section-v16:START detail=docs/gyrum/warp.md@v16 — managed by gyrum-setup; do not edit inside markers -->
 ## Warp — agent work coordination
 
 Warp is the fleet's agent work inbox — a Postgres-backed HTTP queue. Each session checks Warp first for items reserved for its label, then unreserved items, claims atomically (`SELECT … FOR UPDATE SKIP LOCKED`), heartbeats every 5 min, and marks `complete` / `release` / `block` on exit. Env: `WARP_URL` / `WARP_TOKEN` / `WARP_LABEL` from `~/.config/gyrum/control-plane.env`.
@@ -145,7 +148,7 @@ Warp is the fleet's agent work inbox — a Postgres-backed HTTP queue. Each sess
 - **NEVER** reserve to hoard; **NEVER** log your `WARP_TOKEN`; **NEVER** `/complete` a half-done item (use `/release` or `/block`).
 - **NEVER** bypass `--skip-cluster-check` / `--skip-substrate-routing-check` to silence a real cluster / misroute — bypass is for genuine false positives only.
 - **NEVER** force over another agent's fresh, heartbeating claim — use the cooperative `POST /cancel` → claim-when-it-frees path (`docs/gyrum/warp.md`). `gyrum-complete-pr --admin` over a live claim needs explicit per-PR operator authorization.
-<!-- gyrum-warp-section-v15:END -->
+<!-- gyrum-warp-section-v16:END -->
 
 <!-- gyrum-daily-session-log-v4:START — managed by gyrum-setup; do not edit inside markers -->
 ## Daily session log
@@ -222,7 +225,7 @@ Six structural gates (epic warp#273; canon-tier warp#2399, manifest-flip warp#24
 - **NEVER** parent a child that has an open PR / is in_progress under a `kind:epic` that is still `rubric-review:pending` — it SILENTLY gates the child's merge: the warp API 409s `rubric_review_required` on the child's claim, so `gyrum-complete-pr` aborts and an already-green, approved PR sits unmergeable. `gyrum-complete-pr` re-checks and warns LOUDLY, naming the gating EPIC; the ONLY unblock is the operator-only `gyrum-warp approve-rubric <epic>` (agent tokens 403). Parent for tracking only once the rubric is approved — or know the merge stays gated until an operator approves it (warp#9344).
 <!-- gyrum-enforcement-section-v11:END -->
 
-<!-- gyrum-engineering-standard-section-v2:START — managed by gyrum-setup; do not edit inside markers. Body is rendered from templates/engineering-standard-body.md (warp#9968); edit that file, bump this marker version, and re-sync to propagate a content change. -->
+<!-- gyrum-engineering-standard-section-v4:START — managed by gyrum-setup; do not edit inside markers. Body is rendered from templates/engineering-standard-body.md (warp#9968); edit that file, bump this marker version, and re-sync to propagate a content change. -->
 ## Engineering standard
 
 Every agent and human working in this repo is held to the staff-engineer
@@ -277,6 +280,19 @@ comes *before* the craft rules.
   progress before you begin it, completed only once it is verified done, and
   surface the true state (what has landed vs what is still pending) rather than
   letting a backlog grow silently.
+- **Commit and push at each chunk, not at the end.** `gyrum-start-work`
+  isolates into `/tmp/gyrum-work/...`, and that path is swept under disk
+  pressure — it took a worktree holding a full day of approved work on
+  2026-09-29, deck edits and rendered masters alike. A commit alone does not
+  save you, because a commit in a swept worktree dies with it. Push. Treat
+  "the operator approved this" as the trigger to persist, and never let signed-off
+  work exist only on local disk.
+- **Reframe, don't just re-fix.** A review that keeps failing on the same
+  change is information about the change, not the next finding to patch.
+  When it doesn't converge, stop and reframe: is the premise right, the
+  scope right, the layer right, and is the original goal still the goal?
+  Choose one of proceed, rescope, re-spec, or close, and escalate to the
+  operator if it is still unresolved.
 
 ## Rules
 
@@ -350,7 +366,7 @@ the preferred approach.
 ## Patterns (apply only when they reduce complexity)
 
 Repository, Strategy, Factory, Observer/Event, Decorator, Command, Saga.
-<!-- gyrum-engineering-standard-section-v2:END -->
+<!-- gyrum-engineering-standard-section-v4:END -->
 
 <!-- gyrum-agent-capability-section-v8:START — managed by gyrum-setup; do not edit inside markers -->
 ## Agent capability boundaries — STRICT (for AI agents and Claude Code)
@@ -607,7 +623,7 @@ version bumps. To refresh without a full setup run:
 | Verb | What it does (from `--help`) | Don't use instead |
 |---|---|---|
 | `gyrum-complete-pr` | run gates + merge the current branch's PR to main | `gh pr merge` (esp. `--admin` / `--force` / `--no-verify`) — escalation is the failure mode this verb exists to prevent |
-| `gyrum-merge-train` | self-hosted per-repo merge train (warp#7441, | — |
+| `gyrum-merge-train` | self-hosted merge train (warp#7441; EPIC warp#7354 Phase A; dark-factory/docs/features/project-aware-toolchain.md). | — |
 | `gyrum-merged-today` | local-timezone-aware "what shipped today" wrapper. | — |
 | `gyrum-rebase-stack` | sync stacked PRs against origin/main in one command. | — |
 | `gyrum-review-pr` | run structural checks + 3-persona AI review on the current branch | `gh pr review` directly (bypasses persona-review + structural-checks gate) |
@@ -623,6 +639,7 @@ version bumps. To refresh without a full setup run:
 | `warp-bulk-cancel-doc-debt-fp` | sweep the public-symbol-rename | — |
 | `warp-claim` | atomically claim a Warp item for this agent. | manual lease manipulation via DB — claim emits lifecycle events the dashboard depends on |
 | `warp-cleanup-shipped` | auto-complete warp items whose cited PR is | — |
+| `warp-extend` | bounded, audited claim-lease extension for delegated work. | — |
 | `warp-next-claimable` | list ONLY the Ready tickets that gyrum-start-work | — |
 | `warp-protect` | add manual-only + needs-senior-agent tags to a Warp item. | — |
 | `warp-release-all` | bulk force-release every claim held by a label. | — |
@@ -647,7 +664,6 @@ version bumps. To refresh without a full setup run:
 | `gyrum-runner-cache` | host-local cache primitive implementing ADR-136's | — |
 | `gyrum-runner-ghost-watch` | periodic ghost-busy detector (warp#6409, | — |
 | `gyrum-runner-provisioner` | binary verb — no shell header (named skip, warp#13205) | — |
-| `gyrum-runner-provisioner.stale-20260816` | binary verb — no shell header (named skip, warp#13205) | — |
 | `gyrum-runners-destroy` | deregister a GitHub Actions runner AND | — |
 | `gyrum-runners-drain` | relabel a self-hosted GitHub Actions runner so | — |
 | `gyrum-runners-list` | read-only table of self-hosted runner state | — |
@@ -766,6 +782,7 @@ version bumps. To refresh without a full setup run:
 | `gyrum-prestart-check` | pre-flight ticket-risk surface before dispatch | — |
 | `gyrum-preview` | per-worktree dev-server port allocation (warp#952 Phase 1) | — |
 | `gyrum-project-journey` | run / check / list lifecycle project-journeys. | — |
+| `gyrum-prompt` | compose a role's prompt from the prompt library | — |
 | `gyrum-prose-audit` | scan recurring prose in agent briefs / task | — |
 | `gyrum-queue-supervisor-v0` | interactive-in-container supervisor for the | — |
 | `gyrum-reap-heartbeats` | reap orphan warp heartbeat loops (warp 7559). | — |
@@ -800,6 +817,7 @@ version bumps. To refresh without a full setup run:
 | `gyrum-tf-safe-apply` | top-level wrapper exposed on PATH as | — |
 | `gyrum-tmp-janitor` | sweep stale agent worktrees from /tmp. | — |
 | `gyrum-vault-edit` | gyrum-vault-edit CLI: safe ansible-vault round-trips. | — |
+| `gyrum-verify` | binary verb — no shell header (named skip, warp#13205) | — |
 | `gyrum-verify-shipped` | assert that a Warp ticket's cited closing-PR | — |
 | `gyrum-visual-correctness` | bounding-box visual-correctness probe CLI | — |
 | `gyrum-warp` | one-shot ticket-to-merge CLI verb (warp#2575). | — |
@@ -818,7 +836,7 @@ escalating is the failure mode this manifest exists to prevent.
 
 <!-- gyrum-verb-manifest-section-v1:END -->
 
-<!-- gyrum-seam-contracts-section-v1:START -->
+<!-- gyrum-seam-contracts-section-v2:START -->
 <!-- AUTO-GENERATED on gyrum-setup --sync-claudemd (warp#7930 / EPIC warp#7916, B3).
      Source of truth: this repo's seam manifest (the A2 / warp#7924 manifest).
      The body below is rendered by sync_claudemd_seam_contracts_section
@@ -827,28 +845,31 @@ escalating is the failure mode this manifest exists to prevent.
      consumer). Hand-edits to this block are overwritten on the next sync.
      To change what this section says, edit the seam manifest and re-run
      gyrum-setup --sync-claudemd. The v1 marker bumps only on a STRUCTURAL
-     change (new column/field); seam add/remove refreshes silently. -->
+     change (new column/field); seam add/remove refreshes silently. v2 adds
+     request/event payload seams (`consumer_writes`, warp#15572). -->
 ## Seam contracts
 
 This repo's cross-project seams — the field-shape contracts it sits on
 (Bidirectional Contract Testing, EPIC warp#7916). A **seam** is one
-consumer→provider JSON-shape dependency across two repos. Read this at session
+consumer→provider JSON-shape dependency across two repos. It may cover fields
+read from a response or fields written to a request/event payload. Read this at session
 start so you know which contracts you own before you touch them; the data is
 <!-- doc-truth: ignore-next — seams.yaml is the per-repo A2 manifest at the repo root; absent in a repo that declares no seams -->
 rendered from this repo's `seams.yaml`, never hand-authored here.
 
 - **Provides** — seams where this repo is the *provider*. Breaking the listed
-  response shape needs the consumer to migrate first (expand-contract); the
-  conformance test (the warp#7920 kin-openapi live-response check) keeps the
-  published spec honest.
+  response or accepted request shape needs the consumer to migrate first
+  (expand-contract); the conformance test keeps the published spec honest.
 - **Consumes** — seams where this repo is the *consumer*. The entrypoint is the
   <!-- doc-truth: ignore-next — consumer_reads / seams.yaml are declared per-seam; they resolve only in a repo that consumes a seam -->
-  file performing the reads; `consumer_reads` in `seams.yaml` is the declared
-  field subset checked against the provider spec by `gyrum-seam-check`.
+  file performing the reads or writes; `consumer_reads` / `consumer_writes` in
+  <!-- doc-truth: ignore-next — seams.yaml is the per-repo seam manifest; devtools itself may declare no seams -->
+  `seams.yaml` is the declared field subset checked against the provider spec
+  by `gyrum-seam-check`.
 
 _No declared seams for this repo._ This repo declares no cross-project seams (it has no seam manifest, or none of its seams touch this repo). When it starts providing or consuming a cross-repo JSON shape, declare the seam and re-run gyrum-setup --sync-claudemd to surface it here.
 
 To verify a seam locally, run `gyrum-seam-check` (the A2 / warp#7924
 consumer-subset checker). To add or change a seam, edit the seam manifest and
 run gyrum-setup --sync-claudemd to refresh this block.
-<!-- gyrum-seam-contracts-section-v1:END -->
+<!-- gyrum-seam-contracts-section-v2:END -->

@@ -172,6 +172,40 @@ Projects that ship a user-facing UI must include screenshots of the primary scre
 
 Screenshots complement the mermaid-first rule for diagrams; they are the right choice for showing *what a screen actually looks like*, where mermaid is the right choice for *what a flow looks like*. Projects with no UI — libraries, CLIs, backend-only services — are exempt.
 
+## PR functional and visual evidence
+
+Keep evidence inside the existing PR `## Verification` section. Production UI screen/rendering changes require a renderable image, mockup or functional preview. Backend API, data, state or authority changes require a small relevant flow, sequence or state diagram and an explanation of the changed boundaries. Root and nested module paths count alike. Mixed changes need both; UI-only needs no backend diagram and backend-only needs no screen preview. Documentation, tests, fixtures and unrelated scripts need neither visual shape; existing execution requirements for other work types still apply.
+
+Each UI record uses `visual-kind`, `artifact`, `route` or `function`, `scenario`, `source` and `caption`. Choose exactly one honest kind: **design mockup**, **local compiled preview** or **deployed screenshot**. Name the actual full source commit SHA and explain what the artifact shows. A design mockup must not claim runtime or deployment success.
+
+Local artifact paths must stay within the repository, exist and match `artifact-sha256`; their source must match the checked-out HEAD. A remote image or functional-preview record is **supplied-not-fetched**: the offline predicate never fetches its URL or verifies its contents, rendering or relevance. Formal reviewers judge relevance; a well-formed link alone is not verified visual content.
+
+The following shapes are templates, not evidence. Fill every field from actual artifacts; placeholders, example graphs and bare test-spec filenames cannot satisfy the requirement. Keep each record's fields together under its H3.
+
+````markdown
+### UI evidence
+visual-kind: local compiled preview
+artifact: ![screen](<existing local artifact path>)
+route: <route shown; use function instead when appropriate>
+scenario: <state or interaction shown>
+source: <full actual source commit SHA>
+caption: <what this shows>
+artifact-sha256: <actual local file SHA256>
+````
+
+For backend evidence, use `backend-diagram` with real Mermaid flowchart/graph, sequence or state relationships and a `boundary` explanation. An API diagram accompanies its existing curl execution evidence; a diagram alone is explanatory evidence and never runtime proof. Preserve any other required migration, CI or CLI execution evidence.
+
+````markdown
+### backend-diagram
+boundary: <which API, data, state or authority boundaries changed>
+
+```mermaid
+<actual flow, sequence or state relationships>
+```
+````
+
+Generated recommendations remain visibly incomplete until filled. Seeding preserves author-written sections and is idempotent. This forward amendment leaves historical evidence meanings, advisory/enforce modes and audited exemptions unchanged; it grants no installation, protection or activation authority.
+
 ## Links
 
 <!-- the absolute-path token is cited as a non-compliant example; it intentionally does not resolve -->

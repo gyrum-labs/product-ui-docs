@@ -1,4 +1,4 @@
-<!-- gyrum-warp-detail-v15 — managed by gyrum-setup; companion to the Warp section in CLAUDE.md. Do not hand-edit; edit the devtools template and re-sync. -->
+<!-- gyrum-warp-detail-v16 — managed by gyrum-setup; companion to the Warp section in CLAUDE.md. Do not hand-edit; edit the devtools template and re-sync. -->
 # Warp — full protocol, REST reference & rule rationale
 
 Companion to the **Warp** section in `CLAUDE.md`. Read the relevant part when a trigger fires (filing a 3rd related ticket, routing a ticket, patching a kill threshold, reclaiming a live claim, swarming an epic). The imperatives are in `CLAUDE.md`; the *Why* and *mechanics* are here.
@@ -10,6 +10,29 @@ Companion to the **Warp** section in `CLAUDE.md`. Read the relevant part when a 
     cp ~/.gyrum/devtools/templates/control-plane.env.example ~/.config/gyrum/control-plane.env \
       && chmod 600 ~/.config/gyrum/control-plane.env \
       && $EDITOR ~/.config/gyrum/control-plane.env
+
+## Raising contract — frame with Jan before filing (warp#11068)
+
+Repos whose orientation declares the persona-driven raising contract require
+every new ticket to be framed through the Jan requirements persona first.
+The invocation: `gyrum-warp refine "<problem statement>"` (or
+`gyrum-warp refine --file <path.md>`). One command does both contract steps:
+
+1. **Framing** — Jan frames the WHAT (requirements, acceptance criteria,
+   non-goals, scope), never the HOW; the requirements stay
+   implementation-free. The persona definition is
+   `gyrum-labs/devtools/templates/jan-persona.md`.
+2. **Attestation** — `gyrum-warp refine` emits the signed attestation block
+   (agent-id + role + timestamp + requirements-hash) with the framed body;
+   there is no separate signing verb. Editing the requirements after signing
+   invalidates the hash.
+
+Feed the emitted body to `gyrum-warp add --file <path.md>`. Filing without
+the framing is rejected: `gyrum-warp add --lint` fails on the five raising
+gates (requirements-present, persona-used, no-impl-in-requirements,
+criteria-observable, signed), and `gyrum-warp complete` re-validates every
+acceptance criterion plus the requirements hash before allowing completion —
+an unframed or hand-forged ticket cannot reach `done`.
 
 ## REST + CLI cheatsheet
 
@@ -25,9 +48,10 @@ Companion to the **Warp** section in `CLAUDE.md`. Read the relevant part when a 
 | Release | `gyrum-warp release <id>` | `POST /api/v1/items/{id}/release` |
 | Block | `gyrum-warp block <id> --reason X` | `POST /api/v1/items/{id}/block` |
 | Unblock | `gyrum-warp unblock <id>` | `POST /api/v1/items/{id}/unblock` |
-| Cancel | (use REST) | `POST /api/v1/items/{id}/cancel` |
+| Cancel | `gyrum-warp cancel <id> --reason X` ends the item for good; `--handover` sends the cooperative stop instead, the only form the reclaim flow below works with | `POST /api/v1/items/{id}/cancel` |
 | Add | `gyrum-warp add --file path.md` | `POST /api/v1/items` |
 | Self-edit | `gyrum-warp update <id> [flags]` (incl. `--type <type>`) | `PATCH /api/v1/items/{id}` |
+| Cohort disposition | `gyrum-warp disposition plan\|apply\|reverse` | list/get + validated lifecycle/PATCH + per-item audit |
 | List children | (use REST) | `GET /api/v1/items/{id}/children` |
 | Decompose epic | (post-ADR-098) | `POST /api/v1/items/{id}/decompose` |
 
@@ -38,6 +62,23 @@ CLI exit codes: `0` success (full item JSON on stdout for write ops), `1` HTTP e
 ## Common patterns
 
 The canonical session loop is claim → heartbeat → terminal: pick an id from `gyrum-warp ready`, `gyrum-warp claim`, do the work, heartbeat every ~5 min (wrappers spawn a background loop; direct REST callers must handle this), then `gyrum-warp complete` / `gyrum-warp release` / `gyrum-warp block`. Heartbeat responses include `cancel_requested: bool` — when true, finish the current atomic unit, push WIP, and `gyrum-warp release` (do NOT `complete` partial work). Items carry `status`, `priority`, `tags`, `reserved_for` (label that gets first refusal, survives release), `claimed_by` (label holding the lease, clears on release/expiry).
+
+### Claim guard and dead local heartbeats (warp#20493)
+
+When you claim another ticket, the Devtools concurrency guard counts your
+session's existing claims. It releases an expired lease immediately. If a
+local per-ticket heartbeat PID is dead but the lease is valid, it keeps the
+claim held for **15 minutes after the server's `last_heartbeat_at`**, falling
+back to `claimed_at` before the first heartbeat. A dead PID with no server
+refresh for 15 minutes is released and audited as a dead-session claim.
+Missing or malformed lease expiry, or missing, malformed, or future activity
+timestamps count as held. The same session scope and parallel cap still apply.
+
+A recent one-shot `gyrum-warp extend` proves recent activity, not continuous
+work. With a longer lease, a live session that stops refreshing for 15 minutes
+can still be reclaimed if its local heartbeat PID is dead; keep extending
+while the work continues. Normal 15-minute leases leave through the existing
+expired-lease path once the expiry time has passed.
 
 ### Long-running delegated dispatches (warp#14721)
 
@@ -64,13 +105,22 @@ A dispatched sub-agent often runs longer than one ~15-min lease window, and its 
 
 **Why:** Operator (jon, 2026-05-16) flagged that warp#2971-2977 were filed as un-parented siblings of what should have been warp#2978 EPIC; the retroactive parent_id PATCH dead-ended on agent-scope refusal. The catch lifts the pattern to a file-time gate so the next occurrence interrupts at filing.
 
+## Sizing — two-axis hints at filing time (warp#17392)
+
+Every `kind:ticket` gets two INDEPENDENT routing tags computed at `gyrum-warp add` lint and create time; the overseer's assignment step reads them mechanically instead of judging at launch time (evidence: warp#17397 was medium-brain but needed a 1M-context seat, was launched from the `complexity` tag alone onto a 256k seat, and compacted mid-flight):
+
+- **`size:brain-{low|med|high}`** — the reasoning axis; fed by the existing `complexity:` tag (default `med`, same as review-complexity). An explicit `size:brain-*` tag in the ticket's tags line is the author's pin and wins.
+- **`size:ctx-{256k|1m}`** — the context axis; heuristic starts dumb per the amendment: repo in the small known set (`GYRUM_WARP_ADD_CTX_256K_REPOS`, default `devtools`) → `256k`, anything else → `1m`. An explicit `size:ctx-*` tag is the author's pin.
+
+Alongside the tags, a sizing ADVISORY fires (never refuses — the cluster advisory is the precedent) when the `## Scope` section names an expected diff over `GYRUM_WARP_ADD_SIZING_MAX_LINES` (default 400): review rounds track diff size (warp#17118, ~1100 lines, took 14 paid review passes; warp#16632 took 5; warp#17334, 9 lines, took 1 pass in 25 minutes), so split into one-review-pass slices at filing time — discovering it at pass 9 costs days. Advisory prose prints at `--lint` and on interactive creates; non-interactive creates keep the warp#1254 bounded stderr budget and carry the result via the tags only. Bypass: `gyrum-warp add --file <path> --skip-sizing-advisory '<reason ≥ 20 chars>'`; bypasses append to `~/.gyrum/sizing_advisory_overrides_log` (aggregated by `gyrum-skip-audit`). `kind:epic` is exempt (tracked, not seated).
+
 ## Substrate routing — match work-shape to canonical substrate (warp#3029)
 
 **Before filing, ask: does the work-shape match the canonical substrate?** Host bootstrap → `dark-factory/ansible/roles/`; operational ops → `dark-factory/playbooks/`; cross-repo reusable units → `gyrum-pipelines/blocks/`; supervisor/worker/queue-agent → `gyrum-labs/devtools`; warp API endpoints → `gyrum-labs/warp`; cross-cutting principles → `dark-factory/docs/decisions/` ADRs.
 
 - The catch: `gyrum-warp add` runs a client-side substrate-routing check at file-time. The detector reads `~/.gyrum/devtools/lib/substrate-routing.yaml` (versioned rulebook), scores title+body against each rule's keyword bag, picks the highest-scoring rule over threshold. When the detected substrate disagrees with the declared `repo:`, gyrum-warp add warns to stderr and — in agent contexts — tags the create `substrate-routing-suggested-<shape>`.
 - Override: `gyrum-warp add --file <path> --skip-substrate-routing-check '<reason ≥ 20 chars>'`; bypasses append to `~/.gyrum/substrate_routing_overrides_log`.
-- The rulebook is checked-in, versioned, PR-reviewable. To refine a rule, edit `lib/substrate-routing.yaml` in `gyrum-labs/devtools` via the standard PR flow.
+- The rulebook is checked-in, versioned, PR-reviewable. To refine a rule, edit `gyrum-labs/devtools/lib/substrate-routing.yaml` in `gyrum-labs/devtools` via the standard PR flow.
 
 **Why:** The routing analysis is mechanical, not creative — given a work-shape there's a deterministic right answer. Trigger (2026-05-16): the agent drafting warp#3030 proposed a bash script; operator pushback "is there a pipeline?" forced a re-route to ansible role + install-spare.yml — 15 min of grep-the-tree. The gate catches the misroute at filing time.
 
@@ -87,7 +137,7 @@ A dispatched sub-agent often runs longer than one ~15-min lease window, and its 
 
 - The catch: `gyrum-warp add` runs an author-time portfolio gate (beside the routing gate) on every `kind:epic` item. It requires exactly one valid `portfolio:<slug>` tag in the YAML frontmatter `tags:` list. Missing → refuse with the canonical list + a repo-inferred suggestion (`jobboard|daysout|pm-saas`→`products`; `warp|ai-research`→`warp-pm`; `devtools|gyrum-knowledge-base`→`factory-platform`; `dark-factory|gyrum-catalog`→`infra-consolidation`; `ai-frontend|gyrum-ui`→`factory-ui`). Unknown slug → refuse + suggest the closest canonical match. Two tags → refuse (exactly one). The gate runs in `gyrum-warp add --lint` too.
 - Override: `gyrum-warp add --file <path> --skip-portfolio-gate '<reason ≥ 10 chars>'`, for genuinely cross-cutting epics that no single portfolio fits; the bypass is audited to stderr (same shape as `--skip-routing-gate`).
-- The vocabulary is checked-in, versioned, PR-reviewable. To retune it, edit `lib/portfolio-vocabulary.json` in `gyrum-labs/devtools` via the standard PR flow; `test/portfolio-vocabulary.test.sh` pins its shape.
+- The vocabulary is checked-in, versioned, PR-reviewable. To retune it, edit `gyrum-labs/devtools/lib/portfolio-vocabulary.json` in `gyrum-labs/devtools` via the standard PR flow; `gyrum-labs/devtools/test/portfolio-vocabulary.test.sh` pins its shape.
 
 **Why:** Live audit (2026-06-16): 149 epics, ~50 fragmented `area:` tags, 88/149 epics (59%) ungroupable. The bottleneck shifted from "having tickets" to "deciding what to work on", but a roadmap view is noise without a consistent grouping, and a one-time backfill is out-paced by the fleet's epic churn. The fix is the SAME shape as the routing gate — assign the grouping at CREATION (fix the creator, not the backlog). `area:` stays as the drill-down level beneath the portfolio; nothing is deleted, only rolled up.
 
@@ -107,10 +157,10 @@ A dispatched sub-agent often runs longer than one ~15-min lease window, and its 
 
 **The 10-agent fleet auto-claims _unreserved_ Ready items within minutes.** If you `gyrum-warp add` a ticket you'll work yourself, reserve it to your label at file time (`reserved_for: <label>` / `--reserved <label>`) or claim instantly — else a fleet agent grabs it before you `gyrum-start-work` it. Don't file-then-wander.
 
-To reclaim a ticket held by another agent on a **fresh, heartbeating** claim there is NO `--steal-from` / live-takeover verb (takeover only fires on a stale lease). Cooperative path:
+To reclaim a ticket held by another agent on a **fresh, heartbeating** claim there is NO `--steal-from` / live-takeover verb (takeover only fires on a stale lease). Cooperative path — **every step below needs `--handover`**: the default `gyrum-warp cancel` sends warp#17310's `final: true`, which ends the item when its holder releases, so `claimed_by` never frees for you and step 2 cannot succeed:
 
-1. `POST /api/v1/items/{id}/cancel` — sets `cancel_requested=true`, a cooperative STOP signal. Status stays `in_progress`; the holder sees the flag on its next heartbeat (≤5min) and releases. `/reopen` does NOT work here — it only accepts `done`/`cancelled`.
-2. Poll `GET /api/v1/items/{id}` until `claimed_by` clears, then immediately `gyrum-warp claim {id} --force "<reason>"` (add `--allow-sibling-mismatch "<reason ≥30>"` on a sibling-token collision). You're racing the fleet's re-grab — claim in the same tick it frees.
+1. `gyrum-warp cancel {id} --handover --reason "<why>"` (or `POST /api/v1/items/{id}/cancel` with no `final`) — sets `cancel_requested=true`, a cooperative STOP signal. Do NOT use the default `gyrum-warp cancel` here: it sends warp#17310's `final: true`, which ENDS the item when the holder releases instead of freeing it for you. Status stays `in_progress`; the holder sees the flag on its next heartbeat (≤5min) and releases. `/reopen` does NOT work here — it only accepts `done`/`cancelled`.
+2. Still on the `--handover` path: poll `GET /api/v1/items/{id}` until `claimed_by` clears, then immediately `gyrum-warp claim {id} --force "<reason>"` (add `--allow-sibling-mismatch "<reason ≥30>"` on a sibling-token collision). You're racing the fleet's re-grab — claim in the same tick it frees.
 
 **Why:** Operator (jon, 2026-05-25) — a self-filed, locally-verified fix was auto-claimed by a fleet agent that did zero work. `cancel_requested` → holder released on its next heartbeat (~3min) → the claim was won on the poll that saw it go `ready`. Without reserving up front, every file-then-work ticket is a race you can lose.
 
@@ -119,15 +169,15 @@ To reclaim a ticket held by another agent on a **fresh, heartbeating** claim the
 - Forcing over a still-active claim via `gyrum-complete-pr --admin` needs explicit per-PR operator authorization — the cooperative cancel-and-wait path is the default.
 - zsh gotcha: `status` is a read-only special var — name the poll-loop variable something else (`st`) or run the loop under `bash -c`.
 
-## Swarm an EPIC — setting it `in_progress` boosts its children (warp#3051)
+## Swarm an EPIC — governed activation boosts its children (warp#3051)
 
-**Setting a `kind: epic` ticket to `in_progress` is the "swarm this EPIC" verb:** it lifts every open child up one effective-priority tier in the claim and ready queues, so the fleet picks the epic's children ahead of unrelated ready work — without any per-child `reserved_for` cascade. Reserve the EPIC's intent once by flipping the parent; the boost follows the parent's status automatically. Reverse it by moving the epic off `in_progress` (`done`/`blocked`).
+**Activating a `kind: epic` through `gyrum-warp swarm <epic>` is the "swarm this EPIC" verb:** the command uses the governed `POST /api/v1/items/{id}/activate` lifecycle route and verifies the read-back instead of writing `status` through generic PATCH. The resulting `in_progress` state lifts every open child up one effective-priority tier in the claim and ready queues, so the fleet picks the epic's children ahead of unrelated ready work — without any per-child `reserved_for` cascade. Reserve the EPIC's intent once by activating the parent; the boost follows the parent's status automatically. Reverse it through the governed lifecycle that moves the epic off `in_progress` (`done`/`blocked`).
 
-How the boost behaves (server-side, `gyrum-labs/warp` `api/internal/items/claim.go` — `epicChildPriorityBoostExpr`, spliced into the claim CTE `claimNextSQL` in `claim_next.go` and the supervisor ready-queue `listWithAffinitySQLTemplate` in `list.go`):
+How the boost behaves (server-side, `gyrum-labs/warp/api/internal/items/claim.go` — `epicChildPriorityBoostExpr`, spliced into the claim CTE `claimNextSQL` in `gyrum-labs/warp/api/internal/items/claim_next.go` and the supervisor ready-queue `listWithAffinitySQLTemplate` in `gyrum-labs/warp/api/internal/items/list.go`):
 
 - **One tier, never more.** A child of an `in_progress` epic sorts as if one band higher (`low`→`med`, `med`→`high`, `high`→`urgent`), capped at `urgent`; never overflows the band.
 - **Immediate parent only, in_progress only.** Fires only when the row's direct parent is a `kind: epic` that is `in_progress` and not soft-deleted. `done`/`blocked`/`cancelled`/non-epic parents never boost; top-level tickets never boost. No nesting — an EPIC-of-EPICs does not compound; exactly one tier (v1).
 - **Anti-starvation: the boost ties, it does not jump.** A boosted `med` child reaches the same effective rank as an unboosted `high` non-child — ties fall through to the `created_at` tiebreak, so a genuinely-higher-priority unrelated ticket is never starved. The boost ranks BELOW the operator `next_up` pin and the `type: bug` elevation, ABOVE `created_at`.
 - **Claim and ready agree.** The same tier is spliced into both paths, so the row `gyrum-warp ready` SHOWS next is the row a claim would PICK next.
 
-**How to apply:** To converge the fleet on an epic's sub-tickets, set the EPIC `in_progress` rather than hand-reserving each child. Don't reach for the per-child `reserved_for` cascade the boost replaces. The boost honours the priority children already carry — a low-priority swarm won't outrank genuinely urgent independent tickets.
+**How to apply:** To converge the fleet on an Epic's sub-tickets, run `gyrum-warp swarm <epic>` as a programme owner rather than hand-reserving each child. The command keeps both reads on ordinary `WARP_TOKEN` and uses saved `WARP_APPROVE_TOKEN` (or `WARP_ADMIN_TOKEN` as fallback) only for the activation POST; run `gyrum-warp set-token` if no operator token is saved. It refuses non-Epics and blocked/terminal Epics, treats an already-active Epic as success, and only reports a new activation after Warp's read-back is `in_progress`. Don't reach for the per-child `reserved_for` cascade the boost replaces. The boost honours the priority children already carry — a low-priority swarm won't outrank genuinely urgent independent tickets.
