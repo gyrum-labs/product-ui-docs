@@ -451,8 +451,8 @@ def refresher():
 
 if __name__ == "__main__":
     port = int(sys.argv[1]) if len(sys.argv) > 1 else 8137
-    HTML_FILE = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, "runner-fleet.html")
-    MOCKUP_FILE = os.path.join(HERE, "2026-11-06-arcade-mockups.html")
+    HTML_FILE = sys.argv[2] if len(sys.argv) > 2 else os.path.join(HERE, "runner-fleet-infographic.html")
+    MOCKUP_FILE = os.path.join(HERE, "arcade-mockups.html")
     MOCKUP_JS = os.path.join(HERE, "arcade-mockups.js")
     threading.Thread(target=refresher, daemon=True).start()
     print(f"runner-fleet infographic on http://127.0.0.1:{port}/  (snapshot file: {HTML_FILE})", flush=True)

@@ -291,7 +291,7 @@ function mrDraw(g,w,h){
     var bo2=MR.bowls[b2];
     plate(g,STAGES[b2].short+'  '+counts[b2],bo2.x,bo2.y-bo2.r-16,12,STAGES[b2].color);
   }
-  MR.drum.a+=1.5*0.016;
+  if(MR.drum){MR.drum.a+=1.5*0.016;}
 }
 
 /* ════════════════════════════════════════════════════════════
