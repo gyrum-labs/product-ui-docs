@@ -40,14 +40,17 @@ TODO one-line statement of what this repo is for.
 
 Tickets in this repo follow the persona-driven raising contract (warp#11068):
 
-1. **Frame with Jan.** Before filing, run the Jan requirements persona to
-   frame the problem, acceptance criteria, non-goals, and scope boundary.
-   Jan frames the WHAT, never the HOW. The requirements section must be
-   implementation-free.
+1. **Frame with Jan.** Before filing, run `gyrum-warp refine "<problem statement>"`
+   (or `gyrum-warp refine --file <path>`) to frame the problem, acceptance
+   criteria, non-goals, and scope boundary through the Jan requirements
+   persona. Jan frames the WHAT, never the HOW. The requirements section must
+   be implementation-free. The persona definition is in gyrum-labs/devtools:
+   [Jan persona definition](https://github.com/gyrum-labs/devtools/blob/main/templates/jan-persona.md).
 2. **Sign the attestation.** The raising agent signs an attestation
    (agent-id + role + timestamp + requirements-hash) over the framed
-   requirements. Editing the requirements after signing invalidates the
-   hash (drift is detectable).
+   requirements. `gyrum-warp refine` emits the signed attestation block
+   itself — there is no separate signing verb. Editing the requirements
+   after signing invalidates the hash (drift is detectable).
 3. **The acceptance criteria are the contract.** warp-complete invokes
    Jan to validate every AC is met and the requirements hash hasn't
    drifted since attestation. Unmet criteria or a drifted hash blocks
