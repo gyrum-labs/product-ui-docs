@@ -60,6 +60,8 @@ grep -q '<nav id="tree"' /tmp/docs-viewer-smoke.html || fail "missing <nav id=\"
 grep -q '<title>Documentation</title>' /tmp/docs-viewer-smoke.html || fail "missing title marker"
 grep -q 'viewer.js' /tmp/docs-viewer-smoke.html || fail "missing viewer.js script tag"
 grep -q 'marked' /tmp/docs-viewer-smoke.html || fail "missing marked script reference"
+grep -q 'id="search"' /tmp/docs-viewer-smoke.html || fail "missing search box marker (warp#16326)"
+grep -q 'id="search-mode"' /tmp/docs-viewer-smoke.html || fail "missing search mode selector marker (warp#16326)"
 
 INDEX_STATUS=$(curl -s -o /tmp/docs-viewer-smoke.json -w "%{http_code}" "${INDEX_URL}")
 if [ "${INDEX_STATUS}" != "200" ]; then

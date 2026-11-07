@@ -9,6 +9,19 @@
   <body>
     <header>
       <h1>Documentation</h1>
+      <div class="search" role="search">
+        <input
+          id="search"
+          type="search"
+          placeholder="Search docs…"
+          aria-label="Search documentation"
+          autocomplete="off"
+        />
+        <select id="search-mode" aria-label="Search mode">
+          <option value="filename">Filenames</option>
+          <option value="fulltext">Full text</option>
+        </select>
+      </div>
       <span id="path" class="path" aria-live="polite"></span>
     </header>
 

@@ -69,6 +69,61 @@ header .path {
   font-size: 0.85rem;
 }
 
+.search {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+
+.search input {
+  width: 16rem;
+  max-width: 40vw;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 0.9rem;
+}
+
+.search select {
+  padding: 0.3rem 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 0.85rem;
+}
+
+nav#tree .search-results {
+  list-style: none;
+  padding-left: 0;
+}
+
+nav#tree .search-results li {
+  margin: 0.5rem 0;
+  word-break: break-word;
+}
+
+nav#tree .search-snippet {
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+
+nav#tree .search-empty {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+mark {
+  background: var(--banner-bg);
+  color: var(--banner-fg);
+  border-radius: 2px;
+  padding: 0 1px;
+}
+
 .banner {
   padding: 0.6rem 1.25rem;
   background: var(--banner-bg);
@@ -112,6 +167,10 @@ nav#tree .dir-toggle {
   cursor: pointer;
   user-select: none;
   font-weight: 600;
+}
+
+nav#tree .dir-toggle:hover {
+  color: var(--link);
 }
 
 nav#tree .dir-toggle::before {
