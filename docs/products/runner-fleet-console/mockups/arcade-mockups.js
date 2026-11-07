@@ -935,7 +935,7 @@ function lnDraw(g,w,h){
     /* the warning lamp: the heavy gate's truth */
     var heavy=heavyStateOf(m.i);
     g.beginPath(); g.arc(x+w-20,y+24,5.5,0,Math.PI*2);
-    g.fillStyle=heavy==='failed'?'#e0543f':(heavy==='running'||heavy==='queued'?'#f0a832':'#4a5568');
+    g.fillStyle=heavy==='failed'?'#e0543f':(heavy==='running'||heavy==='queued'?'#f0a832':(heavy==='passed'?'#8fce4f':'#4a5568'));
     g.fill();
     /* the tray */
     g.fillStyle='#46526b'; g.fillRect(x+8,506-12,w-16,12);
@@ -962,16 +962,17 @@ function lnDraw(g,w,h){
 }
 function heavyStateOf(stageIdx){
   var ph=(state&&state.phases&&state.phases[STAGES[stageIdx].key])||[];
-  var live=0, failed=0, none=0;
+  var live=0, failed=0, none=0, passed=0;
   ph.forEach(function(r){
     var h=r.heavy;
     if(!h) none++;
-    else if(h==='success') {}
+    else if(h==='success') passed++;
     else if(h==='failure'||h==='cancelled') failed++;
     else live++;
   });
   if(live) return 'running';
   if(failed) return 'failed';
+  if(passed) return 'passed';
   return 'none';
 }
 
