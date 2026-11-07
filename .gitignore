@@ -144,4 +144,10 @@ bin/gyrum-substrate-run
 # runtime noise instead of operator WIP, and syncs the ignore rule fleet-wide.
 gyrum-review-findings.json.prior-keys
 .gyrum/pr-body-finalization-required
+# The review tool rewrites gyrum-review-findings.json on every pass. It is
+# per-invocation state, not source: it is written into the worktree on each
+# run and read from there by the recovery and structure tools, so a committed
+# copy is a stale copy. A tracked copy also trips the tracked-generated-dirt
+# gate, which refuses any pull request that carries one.
+gyrum-review-findings.json
 # >>> gyrum-managed:end
